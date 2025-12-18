@@ -1,0 +1,3 @@
+[workspace]
+members = ["sg2000-pac", "xtask"]
+resolver = "3"

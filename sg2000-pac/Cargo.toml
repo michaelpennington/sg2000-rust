@@ -2,3 +2,14 @@
 name = "sg2000-pac"
 version = "0.1.0"
 edition = "2024"
+
+[dependencies]
+riscv = "0.15.0"
+critical-section = { version = "1.0", optional = true }
+riscv-peripheral = "0.2.0"
+riscv-rt = { version = "0.16.0", optional = true }
+vcell = "0.1.0"
+
+[features]
+rt = ["riscv-rt"]
+v-trap = ["rt", "riscv-rt/v-trap"]

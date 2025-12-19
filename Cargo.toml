@@ -1,3 +1,6 @@
 [workspace]
-members = ["sg2000-pac", "xtask"]
+members = ["sg2000-pac", "synthgut", "xtask"]
 resolver = "3"
+
+[profile.release]
+lto = "fat"

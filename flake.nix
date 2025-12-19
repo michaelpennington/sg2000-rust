@@ -27,6 +27,7 @@
         devShells.default = pkgs.mkShell {
           nativeBuildInputs = with pkgs; [
             cargo-generate
+            cargo-binutils
             svd2rust
             svd2rust-form
             crossRust
@@ -36,7 +37,7 @@
             export NPM_CONFIG_PREFIX=$(pwd)/.npm-packages
             export PATH=$NPM_CONFIG_PREFIX/bin:$PATH
             export LIBCLANG_PATH=${pkgs.libclang.lib}/lib/
-            export CARGO_HOME=$(pwd)/.cargo
+            export CARGO_HOME=$(pwd)/.cargo_cache
           '';
         };
       }

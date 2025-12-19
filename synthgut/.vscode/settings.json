@@ -1,0 +1,8 @@
+{
+  "rust-analyzer.cargo.target": "riscv64gc-unknown-none-elf",
+  "rust-analyzer.cargo.allTargets": false,
+  "rust-analyzer.check.command": "clippy",
+  "rust-analyzer.check.target": "riscv64gc-unknown-none-elf",
+  "rust-analyzer.check.allTargets": false,
+  "rust-analyzer.procMacro.enable": true
+}

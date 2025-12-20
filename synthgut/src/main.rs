@@ -58,7 +58,12 @@ async fn main(spawner: Spawner) -> ! {
     spawner.spawn(print_hellos(uart0)).unwrap();
 
     loop {
-        riscv::asm::wfi();
+        unsafe { gpio0.dr().write(|w| w.bits(LED_MASK)) };
+
+        Timer::after_millis(500).await;
+
+        unsafe { gpio0.dr().write(|w| w.bits(0)) };
+        Timer::after_millis(500).await;
     }
 }
 

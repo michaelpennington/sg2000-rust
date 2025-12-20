@@ -1,3 +1,2 @@
 [alias]
 xtask = "run --package xtask --"
-push = "echo 'put target/riscv64gc-unknown-none-elf/release/synthgut synthgut.elf' | sftp -b - debian@10.42.0.1"

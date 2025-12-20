@@ -1,10 +1,5 @@
 [target.riscv64gc-unknown-none-elf]
-rustflags = [
-  "-C", "link-arg=-Tmemory.x",
-  "-C", "link-arg=-Tdevice.x",
-  "-C", "link-arg=-Tlink.x",
-  "-C", "link-dead-code",
-]
+rustflags = ["-C", "link-dead-code"]
 
 [build]
 target = "riscv64gc-unknown-none-elf"

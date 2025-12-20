@@ -7,6 +7,7 @@ critical-section = "1.2.0"
 embassy-executor = { version = "0.9.1", features = ["executor-thread", "nightly", "arch-riscv32"] }
 embassy-time = "0.5.0"
 embassy-time-driver = { version = "0.2.1", features = ["tick-hz-1_000_000"] }
+embassy-time-queue-utils = "0.3.0"
 riscv = { version = "0.15.0", features = ["critical-section-single-hart"] }
 riscv-rt = "0.16.0"
 sg2000-pac = { version = "0.1.0", path = "../sg2000-pac", features = ["critical-section", "rt"] }

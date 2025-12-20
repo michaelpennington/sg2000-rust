@@ -3,18 +3,22 @@
 #![no_main]
 
 mod irq;
+pub mod resource_table;
+mod timer;
 mod uart;
 
 use core::{fmt::Write, panic::PanicInfo};
 
 use crate::uart::UartWriter;
 use embassy_executor::Spawner;
+use embassy_time::Timer;
+use riscv::asm::nop;
 use sg2000_pac::Uart0;
 use xuantie_riscv::register::mhcr;
 
 const LED_MASK: u32 = 1 << 29;
 const INPUT_MASK: u32 = 1 << 15;
-// const INPUT_IRQ_NO: usize = sg2000_pac::interrupt::try_cause
+const INPUT_IRQ_NO: usize = sg2000_pac::interrupt::ExternalInterrupt::GPIO1 as usize;
 
 #[panic_handler]
 fn panic(info: &PanicInfo) -> ! {
@@ -48,10 +52,41 @@ async fn main(spawner: Spawner) -> ! {
             .int_polarity()
             .modify(|r, w| w.bits(r.bits() | INPUT_MASK));
         gpio1.inten().modify(|r, w| w.bits(r.bits() | INPUT_MASK));
-        // irq::enable_irq(&plic, INPUT_IRQ_NO);
+        irq::enable_irq(&plic, INPUT_IRQ_NO);
     }
+
+    spawner.spawn(print_hellos(uart0)).unwrap();
 
     loop {
         riscv::asm::wfi();
+    }
+}
+
+#[embassy_executor::task]
+async fn print_hellos(uart0: Uart0) {
+    let mut uart_writer = UartWriter::new(&uart0, true);
+
+    loop {
+        for i in 0..10 {
+            writeln!(&mut uart_writer, "HELLO {i}").unwrap();
+            Timer::after_secs(2).await
+        }
+    }
+}
+
+#[unsafe(no_mangle)]
+unsafe extern "C" fn GPIO1() {
+    gpio1_handler();
+}
+
+fn gpio1_handler() {
+    let peripherals = unsafe { sg2000_pac::Peripherals::steal() };
+    let gpio0 = peripherals.gpio0;
+
+    unsafe { gpio0.dr().modify(|r, w| w.bits(r.bits() ^ LED_MASK)) };
+
+    for _ in 0..10000000 {
+        nop();
+        nop();
     }
 }

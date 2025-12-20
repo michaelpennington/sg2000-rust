@@ -4,3 +4,6 @@ resolver = "3"
 
 [profile.release]
 lto = "fat"
+
+[profile.dev]
+opt-level = 1

@@ -349,6 +349,17 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b1376b15f3ff160e9b1e8ea564ce427f2f6fcf77528cc0a8bf405cb476f9cea7"
 
 [[package]]
+name = "sg2000-hal"
+version = "0.1.0"
+dependencies = [
+ "critical-section",
+ "embassy-time-driver",
+ "embassy-time-queue-utils",
+ "riscv 0.15.0",
+ "sg2000-pac",
+]
+
+[[package]]
 name = "sg2000-pac"
 version = "0.1.0"
 dependencies = [
@@ -389,11 +400,9 @@ dependencies = [
  "critical-section",
  "embassy-executor",
  "embassy-time",
- "embassy-time-driver",
- "embassy-time-queue-utils",
  "riscv 0.15.0",
  "riscv-rt",
- "sg2000-pac",
+ "sg2000-hal",
  "vcell",
  "xuantie-riscv",
 ]

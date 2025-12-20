@@ -1,4 +1,4 @@
-use sg2000_pac::{Plic, interrupt::ExternalInterrupt};
+use sg2000_hal::pac::{Plic, interrupt::ExternalInterrupt};
 
 const DEFAULT_PRIORITY: u32 = 7;
 const HART_NO: usize = 0;
@@ -9,7 +9,7 @@ unsafe extern "C" {
 
 #[unsafe(no_mangle)]
 pub extern "C" fn MachineExternal() {
-    let plic = unsafe { sg2000_pac::Plic::steal() };
+    let plic = unsafe { sg2000_hal::pac::Plic::steal() };
 
     loop {
         // Claim the interrupt

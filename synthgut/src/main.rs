@@ -4,7 +4,6 @@
 
 mod irq;
 pub mod resource_table;
-mod timer;
 mod uart;
 
 use core::{fmt::Write, panic::PanicInfo};
@@ -13,12 +12,12 @@ use crate::uart::UartWriter;
 use embassy_executor::Spawner;
 use embassy_time::Timer;
 use riscv::asm::nop;
-use sg2000_pac::Uart0;
+use sg2000_hal::pac::Uart0;
 use xuantie_riscv::register::mhcr;
 
 const LED_MASK: u32 = 1 << 29;
 const INPUT_MASK: u32 = 1 << 15;
-const INPUT_IRQ_NO: usize = sg2000_pac::interrupt::ExternalInterrupt::GPIO1 as usize;
+const INPUT_IRQ_NO: usize = sg2000_hal::pac::interrupt::ExternalInterrupt::GPIO1 as usize;
 
 #[panic_handler]
 fn panic(info: &PanicInfo) -> ! {
@@ -33,7 +32,7 @@ fn panic(info: &PanicInfo) -> ! {
 async fn main(spawner: Spawner) -> ! {
     unsafe { mhcr::set_ie() };
 
-    let peripherals = sg2000_pac::Peripherals::take().unwrap();
+    let peripherals = sg2000_hal::pac::Peripherals::take().unwrap();
     let gpio0 = peripherals.gpio0;
     let gpio1 = peripherals.gpio1;
     let plic = peripherals.plic;
@@ -85,7 +84,7 @@ unsafe extern "C" fn GPIO1() {
 }
 
 fn gpio1_handler() {
-    let peripherals = unsafe { sg2000_pac::Peripherals::steal() };
+    let peripherals = unsafe { sg2000_hal::pac::Peripherals::steal() };
     let gpio0 = peripherals.gpio0;
 
     unsafe { gpio0.dr().modify(|r, w| w.bits(r.bits() ^ LED_MASK)) };

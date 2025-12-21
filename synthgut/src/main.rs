@@ -40,6 +40,9 @@ async fn main(spawner: Spawner) -> ! {
     let uart0 = peripherals.uart0;
 
     unsafe {
+        for i in 0..4 {
+            plic.enable(0).bits(i).write(|w| w.bits(0));
+        }
         riscv::interrupt::enable();
         riscv::register::mie::set_mext();
         riscv::register::mie::set_mtimer();

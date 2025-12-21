@@ -1,3 +1,5 @@
+use std::{env, fs, io::Write};
+
 fn main() {
     // Add OUT_DIR to the linker search path
     println!("cargo:rustc-link-arg=-Tmemory.x");
@@ -6,4 +8,9 @@ fn main() {
 
     // Trigger a rebuild if memory.x changes
     println!("cargo:rerun-if-changed=build.rs");
+
+    let outdir = env::var("OUT_DIR").unwrap();
+    let outfile = format!("{}/timestamp.rs", outdir);
+    let mut fh = fs::File::create(&outfile).unwrap();
+    write!(fh, r#""{}""#, chrono::Local::now()).ok();
 }

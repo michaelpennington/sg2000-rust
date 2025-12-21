@@ -18,6 +18,7 @@ use xuantie_riscv::register::mhcr;
 const LED_MASK: u32 = 1 << 29;
 const INPUT_MASK: u32 = 1 << 15;
 const INPUT_IRQ_NO: usize = sg2000_hal::pac::interrupt::ExternalInterrupt::GPIO1 as usize;
+const BUILD_TIME: &str = include!(concat!(env!("OUT_DIR"), "/timestamp.rs"));
 
 #[panic_handler]
 fn panic(info: &PanicInfo) -> ! {
@@ -38,6 +39,8 @@ async fn main(spawner: Spawner) -> ! {
     let plic = peripherals.plic;
 
     let uart0 = peripherals.uart0;
+    let mut uart_writer = UartWriter::new(&uart0, true);
+    writeln!(uart_writer, "Synthgut 0.1.0, built {BUILD_TIME}").unwrap();
 
     unsafe {
         for i in 0..4 {

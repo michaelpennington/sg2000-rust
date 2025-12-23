@@ -1,6 +1,6 @@
 use core::fmt;
 
-use sg2000_hal::pac::uart0;
+use sg2000_pac::uart0;
 
 pub struct UartWriter<'a> {
     uart: &'a uart0::RegisterBlock,

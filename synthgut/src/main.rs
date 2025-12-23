@@ -3,15 +3,13 @@
 #![no_main]
 
 mod irq;
-mod uart;
 
 use core::{fmt::Write, panic::PanicInfo};
 
-use crate::uart::UartWriter;
 use embassy_executor::Spawner;
 use embassy_time::Timer;
 use riscv::asm::nop;
-use sg2000_hal::pac::Uart0;
+use sg2000_hal::{pac::Uart0, uart::UartWriter};
 use xuantie_riscv::register::mhcr;
 
 const LED_MASK: u32 = 1 << 29;

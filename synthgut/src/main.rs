@@ -3,7 +3,6 @@
 #![no_main]
 
 mod irq;
-pub mod resource_table;
 mod uart;
 
 use core::{fmt::Write, panic::PanicInfo};

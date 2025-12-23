@@ -43,9 +43,6 @@ async fn main(spawner: Spawner) -> ! {
     writeln!(uart_writer, "Synthgut 0.1.0, built {BUILD_TIME}").unwrap();
 
     unsafe {
-        for i in 0..4 {
-            plic.enable(0).bits(i).write(|w| w.bits(0));
-        }
         riscv::interrupt::enable();
         riscv::register::mie::set_mext();
         riscv::register::mie::set_mtimer();
@@ -63,12 +60,8 @@ async fn main(spawner: Spawner) -> ! {
     spawner.spawn(print_hellos(uart0)).unwrap();
 
     loop {
-        unsafe { gpio0.dr().write(|w| w.bits(LED_MASK)) };
-
-        Timer::after_millis(500).await;
-
-        unsafe { gpio0.dr().write(|w| w.bits(0)) };
-        Timer::after_millis(500).await;
+        unsafe { gpio0.dr().modify(|r, w| w.bits(r.bits() ^ LED_MASK)) };
+        Timer::after_secs(1).await;
     }
 }
 

@@ -8,6 +8,7 @@ fn main() {
 
     // Trigger a rebuild if memory.x changes
     println!("cargo:rerun-if-changed=build.rs");
+    println!("cargo:rerun-if-changed=build/always_rerun");
 
     let outdir = env::var("OUT_DIR").unwrap();
     let outfile = format!("{}/timestamp.rs", outdir);

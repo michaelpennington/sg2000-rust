@@ -373,19 +373,6 @@ dependencies = [
 
 [[package]]
 name = "riscv"
-version = "0.13.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "afa3cdbeccae4359f6839a00e8b77e5736caa200ba216caf38d24e4c16e2b586"
-dependencies = [
- "critical-section",
- "embedded-hal 1.0.0",
- "paste",
- "riscv-macros 0.2.0",
- "riscv-pac",
-]
-
-[[package]]
-name = "riscv"
 version = "0.15.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b05cfa3f7b30c84536a9025150d44d26b8e1cc20ddf436448d74cd9591eefb25"
@@ -393,19 +380,8 @@ dependencies = [
  "critical-section",
  "embedded-hal 1.0.0",
  "paste",
- "riscv-macros 0.3.0",
+ "riscv-macros",
  "riscv-pac",
-]
-
-[[package]]
-name = "riscv-macros"
-version = "0.2.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e8c4aa1ea1af6dcc83a61be12e8189f9b293c3ba5a487778a4cd89fb060fdbbc"
-dependencies = [
- "proc-macro2",
- "quote",
- "syn",
 ]
 
 [[package]]
@@ -427,12 +403,13 @@ checksum = "8188909339ccc0c68cfb5a04648313f09621e8b87dc03095454f1a11f6c5d436"
 
 [[package]]
 name = "riscv-peripheral"
-version = "0.2.1"
+version = "0.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "955a98c085e0657c1735d4baf5450092f03c2484d165c00d0166f3dc48b77651"
+checksum = "817eb3a5d25bf6a38281266578ed219a686b9d701033bf04724359fa989c2c4b"
 dependencies = [
  "embedded-hal 1.0.0",
- "riscv 0.13.0",
+ "paste",
+ "riscv",
  "riscv-pac",
 ]
 
@@ -442,7 +419,7 @@ version = "0.16.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3d07b9f3a0eff773fc4df11f44ada4fa302e529bff4b7fe7e6a4b98a65ce9174"
 dependencies = [
- "riscv 0.15.0",
+ "riscv",
  "riscv-pac",
  "riscv-rt-macros",
  "riscv-target-parser",
@@ -478,7 +455,7 @@ dependencies = [
  "critical-section",
  "embassy-time-driver",
  "embassy-time-queue-utils",
- "riscv 0.15.0",
+ "riscv",
  "sg2000-pac",
 ]
 
@@ -487,7 +464,7 @@ name = "sg2000-pac"
 version = "0.1.0"
 dependencies = [
  "critical-section",
- "riscv 0.15.0",
+ "riscv",
  "riscv-peripheral",
  "riscv-rt",
  "vcell",
@@ -530,7 +507,7 @@ dependencies = [
  "critical-section",
  "embassy-executor",
  "embassy-time",
- "riscv 0.15.0",
+ "riscv",
  "riscv-rt",
  "sg2000-hal",
  "vcell",

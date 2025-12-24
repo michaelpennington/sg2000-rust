@@ -5,7 +5,6 @@ default:
 # Build the firmware (synthgut)
 # We 'cd' into the directory so Cargo picks up .cargo/config.toml for the target & flags
 build: 
-    BUILD_TIME=$(date)
     cargo build -p synthgut --target riscv64gc-unknown-none-elf --release
 
 # Build the firmware and display size (requires cargo-binutils from your flake)

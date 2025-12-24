@@ -457,6 +457,7 @@ dependencies = [
  "embassy-time-queue-utils",
  "riscv",
  "sg2000-pac",
+ "xuantie-riscv",
 ]
 
 [[package]]

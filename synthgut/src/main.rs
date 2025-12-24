@@ -2,19 +2,20 @@
 #![no_std]
 #![no_main]
 
-mod irq;
-
 use core::{fmt::Write, panic::PanicInfo};
 
 use embassy_executor::Spawner;
 use embassy_time::Timer;
 use riscv::asm::nop;
-use sg2000_hal::{pac::Uart0, uart::UartWriter};
-use xuantie_riscv::register::mhcr;
+use sg2000_hal::{
+    Config, init,
+    irq::{enable_irq, set_handler},
+    pac::{Uart0, interrupt::ExternalInterrupt},
+    uart::UartWriter,
+};
 
 const LED_MASK: u32 = 1 << 29;
 const INPUT_MASK: u32 = 1 << 15;
-const INPUT_IRQ_NO: usize = sg2000_hal::pac::interrupt::ExternalInterrupt::GPIO1 as usize;
 const BUILD_TIME: &str = include!(concat!(env!("OUT_DIR"), "/timestamp.rs"));
 
 #[panic_handler]
@@ -28,30 +29,25 @@ fn panic(info: &PanicInfo) -> ! {
 
 #[embassy_executor::main]
 async fn main(spawner: Spawner) -> ! {
-    unsafe { mhcr::set_ie() };
+    let peripherals = init(Config);
 
-    let peripherals = sg2000_hal::pac::Peripherals::take().unwrap();
     let gpio0 = peripherals.gpio0;
     let gpio1 = peripherals.gpio1;
     let plic = peripherals.plic;
-
     let uart0 = peripherals.uart0;
+
     let mut uart_writer = UartWriter::new(&uart0, true);
     writeln!(uart_writer, "Synthgut 0.1.0, built {BUILD_TIME}").unwrap();
 
     unsafe {
-        riscv::interrupt::enable();
-        riscv::register::mie::set_mext();
-        riscv::register::mie::set_mtimer();
-        plic.priority_threshold(0).write(|w| w.bits(0));
-
         gpio0.ddr().modify(|r, w| w.bits(r.bits() | LED_MASK));
 
         gpio1
             .int_polarity()
             .modify(|r, w| w.bits(r.bits() | INPUT_MASK));
         gpio1.inten().modify(|r, w| w.bits(r.bits() | INPUT_MASK));
-        irq::enable_irq(&plic, INPUT_IRQ_NO);
+        set_handler(ExternalInterrupt::GPIO1, gpio1_handler);
+        enable_irq(&plic, ExternalInterrupt::GPIO1);
     }
 
     spawner.spawn(print_hellos(uart0)).unwrap();
@@ -72,11 +68,6 @@ async fn print_hellos(uart0: Uart0) {
             Timer::after_secs(2).await
         }
     }
-}
-
-#[unsafe(no_mangle)]
-unsafe extern "C" fn GPIO1() {
-    gpio1_handler();
 }
 
 fn gpio1_handler() {

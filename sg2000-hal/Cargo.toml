@@ -9,6 +9,7 @@ embassy-time-driver = { version = "0.2.1", features = ["tick-hz-1_000_000"], opt
 embassy-time-queue-utils = { version = "0.3.0", optional = true }
 riscv = { version = "0.15.0", features = ["critical-section-single-hart"] }
 sg2000-pac = { version = "0.1.0", path = "../sg2000-pac", features = ["critical-section", "rt"] }
+xuantie-riscv = { git = "https://github.com/rustsbi/xuantie", version = "0.0.0" }
 
 [features]
 default = []

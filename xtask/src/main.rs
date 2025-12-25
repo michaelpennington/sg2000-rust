@@ -25,6 +25,7 @@ fn generate_pac() {
         .arg("-i")
         .arg(&svd_path)
         .arg("--strict")
+        .arg("--atomics")
         .current_dir(&pac_path)
         .status()
         .is_ok_and(|status| status.success())

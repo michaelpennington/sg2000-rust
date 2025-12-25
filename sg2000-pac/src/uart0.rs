@@ -187,12 +187,12 @@ pub mod rbr_thr;
 pub type Dll = crate::Reg<dll::DllSpec>;
 #[doc = "Divisor Latch Low byte Register"]
 pub mod dll;
-#[doc = "IER (rw) register accessor: Interrupt Enable Register\n\nYou can [`read`](crate::Reg::read) this register and get [`ier::R`]. You can [`write_with_zero`](crate::Reg::write_with_zero) this register using [`ier::W`]. You can also [`modify`](crate::Reg::modify) this register. See [API](https://docs.rs/svd2rust/#read--modify--write-api).\n\nFor information about available fields see [`mod@ier`] module"]
+#[doc = "IER (rw) register accessor: Interrupt Enable Register\n\nYou can [`read`](crate::Reg::read) this register and get [`ier::R`]. You can [`reset`](crate::Reg::reset), [`write`](crate::Reg::write), [`write_with_zero`](crate::Reg::write_with_zero) this register using [`ier::W`]. You can also [`modify`](crate::Reg::modify) this register. See [API](https://docs.rs/svd2rust/#read--modify--write-api).\n\nFor information about available fields see [`mod@ier`] module"]
 #[doc(alias = "IER")]
 pub type Ier = crate::Reg<ier::IerSpec>;
 #[doc = "Interrupt Enable Register"]
 pub mod ier;
-#[doc = "DLH (rw) register accessor: Divisor Latch high byte Register\n\nYou can [`read`](crate::Reg::read) this register and get [`dlh::R`]. You can [`write_with_zero`](crate::Reg::write_with_zero) this register using [`dlh::W`]. You can also [`modify`](crate::Reg::modify) this register. See [API](https://docs.rs/svd2rust/#read--modify--write-api).\n\nFor information about available fields see [`mod@dlh`] module"]
+#[doc = "DLH (rw) register accessor: Divisor Latch high byte Register\n\nYou can [`read`](crate::Reg::read) this register and get [`dlh::R`]. You can [`reset`](crate::Reg::reset), [`write`](crate::Reg::write), [`write_with_zero`](crate::Reg::write_with_zero) this register using [`dlh::W`]. You can also [`modify`](crate::Reg::modify) this register. See [API](https://docs.rs/svd2rust/#read--modify--write-api).\n\nFor information about available fields see [`mod@dlh`] module"]
 #[doc(alias = "DLH")]
 pub type Dlh = crate::Reg<dlh::DlhSpec>;
 #[doc = "Divisor Latch high byte Register"]
@@ -202,7 +202,7 @@ pub mod dlh;
 pub type Iir = crate::Reg<iir::IirSpec>;
 #[doc = "Interrupt Identification Register"]
 pub mod iir;
-#[doc = "FCR (w) register accessor: FIFO Control Register\n\nYou can [`write_with_zero`](crate::Reg::write_with_zero) this register using [`fcr::W`]. See [API](https://docs.rs/svd2rust/#read--modify--write-api).\n\nFor information about available fields see [`mod@fcr`] module"]
+#[doc = "FCR (w) register accessor: FIFO Control Register\n\nYou can [`reset`](crate::Reg::reset), [`write`](crate::Reg::write), [`write_with_zero`](crate::Reg::write_with_zero) this register using [`fcr::W`]. See [API](https://docs.rs/svd2rust/#read--modify--write-api).\n\nFor information about available fields see [`mod@fcr`] module"]
 #[doc(alias = "FCR")]
 pub type Fcr = crate::Reg<fcr::FcrSpec>;
 #[doc = "FIFO Control Register"]

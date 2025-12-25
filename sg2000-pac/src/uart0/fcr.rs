@@ -6,7 +6,7 @@ pub type FifoEnW<'a, REG> = crate::BitWriter<'a, REG>;
 pub type RxfifoRstW<'a, REG> = crate::BitWriter<'a, REG>;
 #[doc = "Field `TXFIFO_RST` writer - Transmit FIFO Reset"]
 pub type TxfifoRstW<'a, REG> = crate::BitWriter<'a, REG>;
-#[doc = "DMA Mode Select"]
+#[doc = "DMA Mode Select\n\nValue on reset: 0"]
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum DmaMode {
     #[doc = "0: Single DMA data transfers"]
@@ -37,7 +37,7 @@ where
         self.variant(DmaMode::Mode1)
     }
 }
-#[doc = "TX Empty Trigger Level"]
+#[doc = "TX Empty Trigger Level\n\nValue on reset: 0"]
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 #[repr(u8)]
 pub enum TxEmptyTrig {
@@ -88,7 +88,7 @@ where
         self.variant(TxEmptyTrig::Half)
     }
 }
-#[doc = "RCVR Trigger Level"]
+#[doc = "RCVR Trigger Level\n\nValue on reset: 0"]
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 #[repr(u8)]
 pub enum RxTrig {
@@ -171,7 +171,7 @@ impl W {
         RxTrigW::new(self, 6)
     }
 }
-#[doc = "FIFO Control Register\n\nYou can [`write_with_zero`](crate::Reg::write_with_zero) this register using [`fcr::W`](W). See [API](https://docs.rs/svd2rust/#read--modify--write-api)."]
+#[doc = "FIFO Control Register\n\nYou can [`reset`](crate::Reg::reset), [`write`](crate::Reg::write), [`write_with_zero`](crate::Reg::write_with_zero) this register using [`fcr::W`](W). See [API](https://docs.rs/svd2rust/#read--modify--write-api)."]
 pub struct FcrSpec;
 impl crate::RegisterSpec for FcrSpec {
     type Ux = u8;
@@ -179,4 +179,8 @@ impl crate::RegisterSpec for FcrSpec {
 #[doc = "`write(|w| ..)` method takes [`fcr::W`](W) writer structure"]
 impl crate::Writable for FcrSpec {
     type Safety = crate::Unsafe;
+}
+#[doc = "`reset()` method sets FCR to value 0x01"]
+impl crate::Resettable for FcrSpec {
+    const RESET_VALUE: u8 = 0x01;
 }

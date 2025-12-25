@@ -9,7 +9,11 @@ critical-section = { version = "1.0", optional = true }
 riscv-peripheral = "0.4.0"
 riscv-rt = { version = "0.16.0", optional = true }
 vcell = "0.1.0"
+portable-atomic = { version = "1.12.0", default-features = false }
 
 [features]
 rt = ["riscv-rt"]
 v-trap = ["rt", "riscv-rt/v-trap"]
+
+[lints.rust]
+unsafe_op_in_unsafe_fn = "allow"

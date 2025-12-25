@@ -766,3 +766,4 @@ where
         core::fmt::Debug::fmt(&self.read(), f)
     }
 }
+mod atomic;

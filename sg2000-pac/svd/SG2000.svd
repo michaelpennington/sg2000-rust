@@ -336,6 +336,7 @@
           <name>IER</name>
           <description>Interrupt Enable Register</description>
           <addressOffset>0x004</addressOffset>
+          <resetValue>0x00000000</resetValue>
           <fields>
             <field>
               <name>RX_DATA</name>
@@ -373,6 +374,7 @@
           <name>DLH</name>
           <description>Divisor Latch high byte Register</description>
           <addressOffset>0x004</addressOffset>
+          <resetValue>0x00000000</resetValue>
           <alternateRegister>IER</alternateRegister>
           <fields>
             <field>
@@ -457,6 +459,7 @@
           <description>FIFO Control Register</description>
           <addressOffset>0x08</addressOffset>
           <size>8</size>
+          <resetValue>0x01</resetValue>
           <access>write-only</access>
           <alternateRegister>IIR</alternateRegister>
           <fields>

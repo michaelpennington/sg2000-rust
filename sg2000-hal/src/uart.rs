@@ -13,12 +13,8 @@ impl<'a> UartWriter<'a> {
     }
 
     fn putc_blocking(&self, value: u8) {
-        while !self.uart.lsr().read().transmitter_empty_bit().bit() {}
-        unsafe {
-            self.uart
-                .rbr_thr_dll()
-                .write(|w| w.rbr_thr_dll().bits(value))
-        };
+        while !self.uart.lsr().read().tx_empty().bit() {}
+        unsafe { self.uart.rbr_thr().write(|w| w.rbr_thr().bits(value)) };
     }
 }
 

@@ -24,6 +24,7 @@ fn generate_pac() {
         .arg(&config_path)
         .arg("-i")
         .arg(&svd_path)
+        .arg("--strict")
         .current_dir(&pac_path)
         .status()
         .is_ok_and(|status| status.success())

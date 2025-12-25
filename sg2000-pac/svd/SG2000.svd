@@ -5,6 +5,8 @@
   <addressUnitBits>8</addressUnitBits>
   <width>64</width>
   <size>32</size>
+  <version>1</version>
+  <description>64-bit RISC-V Processor</description>
   <peripherals>
     <peripheral>
       <name>plic</name>
@@ -300,14 +302,14 @@
       </interrupt>
       <registers>
         <register>
-          <name>RBR_THR_DLL</name>
-          <description>Receive Buffer,Transmit Holding or Divisor Latch Low byte Register</description>
+          <name>RBR_THR</name>
+          <description>Receive Buffer Register, Transmit Holding Register</description>
           <addressOffset>0x000</addressOffset>
           <resetValue>0x00000000</resetValue>
           <fields>
             <field>
-              <name>RBR_THR_DLL</name>
-              <description/>
+              <name>RBR_THR</name>
+              <description>(R)Receive Buffer Register, Data byte received on the serial input port. (W)Transmit Holding Register, Data to be transmitted on the serial output port</description>
               <bitRange>[7:0]</bitRange>
               <access>read-write</access>
             </field>
@@ -315,52 +317,752 @@
           <access>read-write</access>
         </register>
         <register>
+          <name>DLL</name>
+          <alternateRegister>RBR_THR</alternateRegister>
+          <description>Divisor Latch Low byte Register</description>
+          <addressOffset>0x000</addressOffset>
+          <resetValue>0x00000000</resetValue>
+          <fields>
+            <field>
+              <name>DLL</name>
+              <description>Lower 8 bits of a 16-bit Divisor Latch register that contains the baud rate divisor for the UART</description>
+              <bitRange>[7:0]</bitRange>
+              <access>read-write</access>
+            </field>
+          </fields>
+          <access>read-write</access>
+        </register>
+        <register>
+          <name>IER</name>
+          <description>Interrupt Enable Register</description>
+          <addressOffset>0x004</addressOffset>
+          <fields>
+            <field>
+              <name>RX_DATA</name>
+              <description>Enable Received Data Enable Interrupt</description>
+              <bitRange>[0:0]</bitRange>
+              <access>read-write</access>
+            </field>
+            <field>
+              <name>TX_EMPTY</name>
+              <description>Enable Transmit Holding Register Empty Interrupt</description>
+              <bitRange>[1:1]</bitRange>
+              <access>read-write</access>
+            </field>
+            <field>
+              <name>RX_STATUS</name>
+              <description>Enable Receiver Line Status Interrupt</description>
+              <bitRange>[2:2]</bitRange>
+              <access>read-write</access>
+            </field>
+            <field>
+              <name>MODEM_STATUS</name>
+              <description>Enable Modem Status Interrupt</description>
+              <bitRange>[3:3]</bitRange>
+              <access>read-write</access>
+            </field>
+            <field>
+              <name>THRE_MODE</name>
+              <description>Enable Programmable THRE Interrupt Mode</description>
+              <bitRange>[7:7]</bitRange>
+              <access>read-write</access>
+            </field>
+          </fields>
+        </register>
+        <register>
+          <name>DLH</name>
+          <description>Divisor Latch high byte Register</description>
+          <addressOffset>0x004</addressOffset>
+          <alternateRegister>IER</alternateRegister>
+          <fields>
+            <field>
+              <name>DLH</name>
+              <description>Upper 8-bits of a 16-bit Divisor Latch register that contains the baud rate divisor for the UART</description>
+              <bitRange>[7:0]</bitRange>
+              <access>read-write</access>
+            </field>
+          </fields>
+        </register>
+        <register>
+          <name>IIR</name>
+          <description>Interrupt Identification Register</description>
+          <addressOffset>0x008</addressOffset>
+          <access>read-only</access>
+          <resetValue>0x01</resetValue>
+          <fields>
+            <field>
+              <name>INT_ID</name>
+              <description>Interrupt ID Status</description>
+              <bitOffset>0</bitOffset>
+              <bitWidth>4</bitWidth>
+              <enumeratedValues>
+                <name>INT_Status</name>
+                <enumeratedValue>
+                  <name>ModemStatus</name>
+                  <description>Modem status</description>
+                  <value>0</value>
+                </enumeratedValue>
+                <enumeratedValue>
+                  <name>NoInterrupt</name>
+                  <description>No interrupt pending</description>
+                  <value>1</value>
+                </enumeratedValue>
+                <enumeratedValue>
+                  <name>THREmpty</name>
+                  <description>Trasmit holding register empty</description>
+                  <value>2</value>
+                </enumeratedValue>
+                <enumeratedValue>
+                  <name>DataAvailable</name>
+                  <description>Received data available</description>
+                  <value>4</value>
+                </enumeratedValue>
+                <enumeratedValue>
+                  <name>LineStatus</name>
+                  <description>Receiver line status</description>
+                  <value>6</value>
+                </enumeratedValue>
+                <enumeratedValue>
+                  <name>BusyDetect</name>
+                  <description>Busy detect</description>
+                  <value>7</value>
+                </enumeratedValue>
+                <enumeratedValue>
+                  <name>CharTimeout</name>
+                  <description>Character Timeout</description>
+                  <value>12</value>
+                </enumeratedValue>
+              </enumeratedValues>
+            </field>
+            <field>
+              <name>FIFO_EN</name>
+              <description>FIFOs Enabled Status</description>
+              <bitOffset>6</bitOffset>
+              <bitWidth>2</bitWidth>
+              <enumeratedValues>
+                <enumeratedValue>
+                  <name>Disabled</name>
+                  <value>0</value>
+                </enumeratedValue>
+                <enumeratedValue>
+                  <name>Enabled</name>
+                  <value>3</value>
+                </enumeratedValue>
+              </enumeratedValues>
+            </field>
+          </fields>
+        </register>
+        <register>
+          <name>FCR</name>
+          <description>FIFO Control Register</description>
+          <addressOffset>0x08</addressOffset>
+          <size>8</size>
+          <access>write-only</access>
+          <alternateRegister>IIR</alternateRegister>
+          <fields>
+            <field>
+              <name>FIFO_EN</name>
+              <description>FIFO Enable</description>
+              <bitOffset>0</bitOffset>
+              <bitWidth>1</bitWidth>
+            </field>
+            <field>
+              <name>RXFIFO_RST</name>
+              <description>Receiver FIFO Reset</description>
+              <bitOffset>1</bitOffset>
+              <bitWidth>1</bitWidth>
+            </field>
+            <field>
+              <name>TXFIFO_RST</name>
+              <description>Transmit FIFO Reset</description>
+              <bitOffset>2</bitOffset>
+              <bitWidth>1</bitWidth>
+            </field>
+            <field>
+              <name>DMA_MODE</name>
+              <description>DMA Mode Select</description>
+              <bitOffset>3</bitOffset>
+              <bitWidth>1</bitWidth>
+              <enumeratedValues>
+                <enumeratedValue>
+                  <name>Mode0</name>
+                  <description>Single DMA data transfers</description>
+                  <value>0</value>
+                </enumeratedValue>
+                <enumeratedValue>
+                  <name>Mode1</name>
+                  <description>Multi DMA data transfers (continuous)</description>
+                  <value>1</value>
+                </enumeratedValue>
+              </enumeratedValues>
+            </field>
+            <field>
+              <name>TX_EMPTY_TRIG</name>
+              <description>TX Empty Trigger Level</description>
+              <bitOffset>4</bitOffset>
+              <bitWidth>2</bitWidth>
+              <enumeratedValues>
+                <enumeratedValue>
+                  <name>Empty</name>
+                  <description>FIFO empty</description>
+                  <value>0</value>
+                </enumeratedValue>
+                <enumeratedValue>
+                  <name>Chars2</name>
+                  <description>2 characters in FIFO</description>
+                  <value>1</value>
+                </enumeratedValue>
+                <enumeratedValue>
+                  <name>Quarter</name>
+                  <description>FIFO 1/4 full</description>
+                  <value>2</value>
+                </enumeratedValue>
+                <enumeratedValue>
+                  <name>Half</name>
+                  <description>FIFO 1/2 full</description>
+                  <value>3</value>
+                </enumeratedValue>
+              </enumeratedValues>
+            </field>
+            <field>
+              <name>RX_TRIG</name>
+              <description>RCVR Trigger Level</description>
+              <bitOffset>6</bitOffset>
+              <bitWidth>2</bitWidth>
+              <enumeratedValues>
+                <enumeratedValue>
+                  <name>Char1</name>
+                  <description>1 character in FIFO</description>
+                  <value>0</value>
+                </enumeratedValue>
+                <enumeratedValue>
+                  <name>Quarter</name>
+                  <description>FIFO 1/4 full</description>
+                  <value>1</value>
+                </enumeratedValue>
+                <enumeratedValue>
+                  <name>Half</name>
+                  <description>FIFO 1/2 full</description>
+                  <value>2</value>
+                </enumeratedValue>
+                <enumeratedValue>
+                  <name>FullMinus2</name>
+                  <description>FIFO 2 less than full</description>
+                  <value>3</value>
+                </enumeratedValue>
+              </enumeratedValues>
+            </field>
+          </fields>
+        </register>
+        <register>
+          <name>LCR</name>
+          <description>Line Control Register</description>
+          <addressOffset>0x00c</addressOffset>
+          <resetValue>0x00</resetValue>
+          <access>read-write</access>
+          <fields>
+            <field>
+              <name>DATA_LEN</name>
+              <description>Data length selection</description>
+              <bitOffset>0</bitOffset>
+              <bitWidth>2</bitWidth>
+              <enumeratedValues>
+                <enumeratedValue>
+                  <name>Five</name>
+                  <description>Five data bits</description>
+                  <value>0</value>
+                </enumeratedValue>
+                <enumeratedValue>
+                  <name>Six</name>
+                  <description>Six data bits</description>
+                  <value>1</value>
+                </enumeratedValue>
+                <enumeratedValue>
+                  <name>Seven</name>
+                  <description>Seven data bits</description>
+                  <value>2</value>
+                </enumeratedValue>
+                <enumeratedValue>
+                  <name>Eight</name>
+                  <description>Eight data bits</description>
+                  <value>3</value>
+                </enumeratedValue>
+              </enumeratedValues>
+            </field>
+            <field>
+              <name>STOP_BITS</name>
+              <description>Number of stop bits.</description>
+              <bitOffset>2</bitOffset>
+              <bitWidth>1</bitWidth>
+              <enumeratedValues>
+                <enumeratedValue>
+                  <name>One</name>
+                  <description>One stop bit</description>
+                  <value>0</value>
+                </enumeratedValue>
+                <enumeratedValue>
+                  <name>Two</name>
+                  <description>Two stop bits if DATA_LEN is not 0, else 1.5 bits</description>
+                  <value>1</value>
+                </enumeratedValue>
+              </enumeratedValues>
+            </field>
+            <field>
+              <name>PARITY_EN</name>
+              <description>Parity enable</description>
+              <bitOffset>3</bitOffset>
+              <bitWidth>1</bitWidth>
+            </field>
+            <field>
+              <name>PAR_EVEN</name>
+              <description>Even parity select</description>
+              <bitOffset>4</bitOffset>
+              <bitWidth>1</bitWidth>
+            </field>
+            <field>
+              <name>STICK_PAR</name>
+              <description>Stick parity</description>
+              <bitOffset>5</bitOffset>
+              <bitWidth>1</bitWidth>
+            </field>
+            <field>
+              <name>BREAK_CNT</name>
+              <description>Break control bit</description>
+              <bitOffset>6</bitOffset>
+              <bitWidth>1</bitWidth>
+            </field>
+            <field>
+              <name>DIV_LATCH</name>
+              <description>Divisor Latch Access Bit</description>
+              <bitOffset>7</bitOffset>
+              <bitWidth>1</bitWidth>
+            </field>
+          </fields>
+        </register>
+        <register>
+          <name>MCR</name>
+          <description>Modem Control Register</description>
+          <addressOffset>0x010</addressOffset>
+          <resetValue>0x00</resetValue>
+          <fields>
+            <field>
+              <name>REQ_SEND</name>
+              <description>Request to Send. This is used to directly control the Request to Send (rts_n) output</description>
+              <bitOffset>1</bitOffset>
+              <bitWidth>1</bitWidth>
+            </field>
+            <field>
+              <name>AUTO_EN</name>
+              <description>Auto Flow Control Enable</description>
+              <bitOffset>5</bitOffset>
+              <bitWidth>1</bitWidth>
+            </field>
+          </fields>
+        </register>
+        <register>
           <name>LSR</name>
           <description>Line Status Register</description>
           <addressOffset>0x014</addressOffset>
           <fields>
             <field>
-              <name>Data Ready Bit</name>
+              <name>DATA_READY</name>
+              <description>Data Ready Bit</description>
               <bitRange>[0:0]</bitRange>
               <access>read-only</access>
             </field>
             <field>
-              <name>Overrun Error Bit</name>
+              <name>OVERRUN_ERR</name>
+              <description>Overrun Error Bit</description>
               <bitRange>[1:1]</bitRange>
               <access>read-only</access>
             </field>
             <field>
-              <name>Parity Error Bit</name>
+              <name>PARITY_ERR</name>
+              <description>Parity Error Bit</description>
               <bitRange>[2:2]</bitRange>
               <access>read-only</access>
             </field>
             <field>
-              <name>Framing Error Bit</name>
+              <name>FRAMING_ERR</name>
+              <description>Framing Error Bit</description>
               <bitRange>[3:3]</bitRange>
               <access>read-only</access>
             </field>
             <field>
-              <name>Break Interrupt Bit</name>
+              <name>BREAK_INT</name>
+              <description>Break Interrupt Bit</description>
               <bitRange>[4:4]</bitRange>
               <access>read-only</access>
             </field>
             <field>
-              <name>Transmit Holding Register Empty Bit</name>
+              <name>TX_HOLD_EMPTY</name>
+              <description>Transmit Holding Register Empty Bit</description>
               <bitRange>[5:5]</bitRange>
               <access>read-only</access>
             </field>
             <field>
-              <name>Transmitter Empty Bit</name>
+              <name>TX_EMPTY</name>
+              <description>Transmitter Empty Bit</description>
               <bitRange>[6:6]</bitRange>
               <access>read-only</access>
             </field>
             <field>
-              <name>Receiver FIFO Error Bit</name>
+              <name>RX_FIFO_ERR</name>
+              <description>Receiver FIFO Error Bit</description>
               <bitRange>[7:7]</bitRange>
               <access>read-only</access>
             </field>
           </fields>
           <access>read-only</access>
+        </register>
+        <register>
+          <name>MSR</name>
+          <description>Modem Status Register</description>
+          <addressOffset>0x018</addressOffset>
+          <access>read-only</access>
+          <fields>
+            <field>
+              <name>DELTA_CTS</name>
+              <description>Delta Clear to Send.</description>
+              <bitOffset>0</bitOffset>
+              <bitWidth>1</bitWidth>
+            </field>
+            <field>
+              <name>CTS</name>
+              <description>CTS</description>
+              <bitOffset>4</bitOffset>
+              <bitWidth>1</bitWidth>
+            </field>
+          </fields>
+        </register>
+        <register>
+          <name>LPDLL</name>
+          <description>Low Power Divisor Latch (Low) Register</description>
+          <addressOffset>0x020</addressOffset>
+          <access>read-write</access>
+          <resetValue>0x00</resetValue>
+          <fields>
+            <field>
+              <name>ECO_DIV_LOW</name>
+              <description>Low Power Divisor Latch (Low byte) Register</description>
+              <bitOffset>0</bitOffset>
+              <bitWidth>8</bitWidth>
+            </field>
+          </fields>
+        </register>
+        <register>
+          <name>LPDLH</name>
+          <addressOffset>0x024</addressOffset>
+          <description>Low Power Divisor Latch (High) Register</description>
+          <access>read-write</access>
+          <resetValue>0x00</resetValue>
+          <fields>
+            <field>
+              <name>ECO_DIV_HIGH</name>
+              <description>Low Power Divisor Latch (High byte) Register</description>
+              <bitOffset>0</bitOffset>
+              <bitWidth>8</bitWidth>
+            </field>
+          </fields>
+        </register>
+        <register>
+          <name>SRBR</name>
+          <description>Shadow Receive Buffer Register</description>
+          <addressOffset>0x030</addressOffset>
+          <access>read-only</access>
+          <resetValue>0x00</resetValue>
+          <fields>
+            <field>
+              <name>RX_BUF</name>
+              <description>Shadow Receive Buffer Register</description>
+              <bitOffset>0</bitOffset>
+              <bitWidth>8</bitWidth>
+            </field>
+          </fields>
+        </register>
+        <register>
+          <name>STHR</name>
+          <description>Shadow Transmit Buffer Register</description>
+          <addressOffset>0x030</addressOffset>
+          <alternateRegister>SRBR</alternateRegister>
+          <access>write-only</access>
+          <fields>
+            <field>
+              <name>TX_BUF</name>
+              <description>Shadow Transmit Holding Register</description>
+              <bitOffset>0</bitOffset>
+              <bitWidth>8</bitWidth>
+            </field>
+          </fields>
+        </register>
+        <register>
+          <name>FAR</name>
+          <description>FIFO Access Register</description>
+          <addressOffset>0x070</addressOffset>
+          <access>read-write</access>
+          <resetValue>0x00</resetValue>
+          <fields>
+            <field>
+              <name>FIFO_ACCESS</name>
+              <description>Used to enable a FIFO access mode for testing.</description>
+              <bitOffset>0</bitOffset>
+              <bitWidth>1</bitWidth>
+            </field>
+          </fields>
+        </register>
+        <register>
+          <name>TFR</name>
+          <description>Transmit FIFO Read</description>
+          <addressOffset>0x074</addressOffset>
+          <access>read-write</access>
+          <resetValue>0x00</resetValue>
+          <fields>
+            <field>
+              <name>TX_FIFO_READ</name>
+              <description>This bits are only valid when FIFO access mode is enabled.</description>
+              <bitOffset>0</bitOffset>
+              <bitWidth>8</bitWidth>
+            </field>
+          </fields>
+        </register>
+        <register>
+          <name>RFW</name>
+          <description>Receive FIFO Write</description>
+          <addressOffset>0x078</addressOffset>
+          <access>read-write</access>
+          <resetValue>0x00</resetValue>
+          <fields>
+            <field>
+              <name>RX_FIFO_WRITE</name>
+              <description>Receive FIFO Write Data</description>
+              <bitOffset>0</bitOffset>
+              <bitWidth>8</bitWidth>
+            </field>
+            <field>
+              <name>RX_FIFO_PARITY_ERR</name>
+              <description>Receive FIFO Parity Error</description>
+              <bitOffset>8</bitOffset>
+              <bitWidth>1</bitWidth>
+            </field>
+            <field>
+              <name>RX_FIFO_FRAMING_ERR</name>
+              <description>Receive FIFO Framing Error</description>
+              <bitOffset>9</bitOffset>
+              <bitWidth>1</bitWidth>
+            </field>
+          </fields>
+        </register>
+        <register>
+          <name>USR</name>
+          <description>UART Status Register</description>
+          <addressOffset>0x07C</addressOffset>
+          <access>read-only</access>
+          <fields>
+            <field>
+              <name>BUSY</name>
+              <description> </description>
+              <bitOffset>0</bitOffset>
+              <bitWidth>1</bitWidth>
+            </field>
+            <field>
+              <name>TX_FIFO_NOT_FULL</name>
+              <description>Transmit FIFO Not Full</description>
+              <bitOffset>1</bitOffset>
+              <bitWidth>1</bitWidth>
+            </field>
+            <field>
+              <name>TX_FIFO_EMPTY</name>
+              <description>Transmit FIFO Empty</description>
+              <bitOffset>2</bitOffset>
+              <bitWidth>1</bitWidth>
+            </field>
+            <field>
+              <name>RX_FIFO_NOT_EMPTY</name>
+              <description>Receive FIFO Not EMPTY</description>
+              <bitOffset>3</bitOffset>
+              <bitWidth>1</bitWidth>
+            </field>
+            <field>
+              <name>RX_FIFO_FULL</name>
+              <description>Receive FIFO Full</description>
+              <bitOffset>4</bitOffset>
+              <bitWidth>1</bitWidth>
+            </field>
+          </fields>
+        </register>
+        <register>
+          <name>TFL</name>
+          <description>Transmit FIFO Level</description>
+          <addressOffset>0x080</addressOffset>
+          <access>read-only</access>
+          <fields>
+            <field>
+              <name>TX_FIFO_LVL</name>
+              <description>This indicates the number of data entries in the transmit FIFO</description>
+              <bitOffset>0</bitOffset>
+              <bitWidth>6</bitWidth>
+            </field>
+          </fields>
+        </register>
+        <register>
+          <name>RFL</name>
+          <description>Receive FIFO Level</description>
+          <addressOffset>0x084</addressOffset>
+          <access>read-only</access>
+          <fields>
+            <field>
+              <name>RX_FIFO_LVL</name>
+              <description>This indicates the number of data entries in the receive FIFO</description>
+              <bitOffset>0</bitOffset>
+              <bitWidth>6</bitWidth>
+            </field>
+          </fields>
+        </register>
+        <register>
+          <name>SRR</name>
+          <description>Software Reset Register</description>
+          <addressOffset>0x088</addressOffset>
+          <access>read-write</access>
+          <resetValue>0x00</resetValue>
+          <fields>
+            <field>
+              <name>UART_RST</name>
+              <description>UART Reset</description>
+              <bitOffset>0</bitOffset>
+              <bitWidth>1</bitWidth>
+            </field>
+            <field>
+              <name>RX_FIFO_RST</name>
+              <description>Receiver FIFO Reset</description>
+              <bitOffset>1</bitOffset>
+              <bitWidth>1</bitWidth>
+            </field>
+            <field>
+              <name>TX_FIFO_RST</name>
+              <description>Transmitter FIFO Reset</description>
+              <bitOffset>2</bitOffset>
+              <bitWidth>1</bitWidth>
+            </field>
+          </fields>
+        </register>
+        <register>
+          <name>SRTS</name>
+          <description>Shadow Request to Send</description>
+          <addressOffset>0x08C</addressOffset>
+          <access>read-write</access>
+          <fields>
+            <field>
+              <name>REQ_SEND</name>
+              <description>This is a shadow register for the RTS bit (MCR[1])</description>
+              <bitOffset>0</bitOffset>
+              <bitWidth>1</bitWidth>
+            </field>
+          </fields>
+        </register>
+        <register>
+          <name>SBCR</name>
+          <description>Shadow Break Control Register</description>
+          <addressOffset>0x090</addressOffset>
+          <access>read-write</access>
+          <resetValue>0x00</resetValue>
+          <fields>
+            <field>
+              <name>BREAK_CNT</name>
+              <description>This is a shadow register for the Break bit (LCR[6]).</description>
+              <bitOffset>0</bitOffset>
+              <bitWidth>1</bitWidth>
+            </field>
+          </fields>
+        </register>
+        <register>
+          <name>SDMAM</name>
+          <description>Shadow DMA Mode</description>
+          <addressOffset>0x094</addressOffset>
+          <access>read-write</access>
+          <resetValue>0x00</resetValue>
+          <fields>
+            <field>
+              <name>DMA_MODE</name>
+              <description>This is a shadow register for the DMA mode bit (FCR[3])</description>
+              <bitOffset>0</bitOffset>
+              <bitWidth>1</bitWidth>
+            </field>
+          </fields>
+        </register>
+        <register>
+          <name>SFE</name>
+          <description>Shadow FIFO Enable</description>
+          <addressOffset>0x098</addressOffset>
+          <access>read-write</access>
+          <resetValue>0x00</resetValue>
+          <fields>
+            <field>
+              <name>FIFO_EN</name>
+              <description>This is a shadow register for the FIFO enable bit (FCR[0])</description>
+              <bitOffset>0</bitOffset>
+              <bitWidth>1</bitWidth>
+            </field>
+          </fields>
+        </register>
+        <register>
+          <name>SRT</name>
+          <description>Shadow RCVR Trigger</description>
+          <addressOffset>0x09C</addressOffset>
+          <access>read-write</access>
+          <resetValue>0x00</resetValue>
+          <fields>
+            <field>
+              <name>RX_TRIG</name>
+              <description>This is a shadow register for the RCVR trigger bits (FCR[7:6])</description>
+              <bitOffset>0</bitOffset>
+              <bitWidth>2</bitWidth>
+            </field>
+          </fields>
+        </register>
+        <register>
+          <name>STET</name>
+          <description>Shadow TX Empty Trigger</description>
+          <addressOffset>0x0A0</addressOffset>
+          <access>read-write</access>
+          <resetValue>0x00</resetValue>
+          <fields>
+            <field>
+              <name>TX_EMPTY_TRIG</name>
+              <description>This is a shadow register for the TX empty trigger bits (FCR[5:4])</description>
+              <bitOffset>0</bitOffset>
+              <bitWidth>2</bitWidth>
+            </field>
+          </fields>
+        </register>
+        <register>
+          <name>HTX</name>
+          <description>Halt TX</description>
+          <addressOffset>0x0A4</addressOffset>
+          <access>read-write</access>
+          <resetValue>0x00</resetValue>
+          <fields>
+            <field>
+              <name>HALT_TX</name>
+              <description>This register is used to halt transmissions for testing.</description>
+              <bitOffset>0</bitOffset>
+              <bitWidth>1</bitWidth>
+            </field>
+          </fields>
+        </register>
+        <register>
+          <name>DMASA</name>
+          <description>DMA Software Acknowledge</description>
+          <addressOffset>0x0A8</addressOffset>
+          <access>read-write</access>
+          <resetValue>0x00</resetValue>
+          <fields>
+            <field>
+              <name>DMA_ACK</name>
+              <description>This register is used to perform a DMA software acknowledge if a transfer needs to be terminated due to an error condition.</description>
+              <bitOffset>0</bitOffset>
+              <bitWidth>1</bitWidth>
+            </field>
+          </fields>
         </register>
       </registers>
     </peripheral>

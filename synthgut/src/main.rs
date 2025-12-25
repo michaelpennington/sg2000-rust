@@ -10,9 +10,10 @@ use riscv::asm::nop;
 use sg2000_hal::{
     Config, init,
     irq::{enable_irq, set_handler},
-    pac::{Uart0, interrupt::ExternalInterrupt},
-    uart::UartWriter,
+    pac::{Uart1, interrupt::ExternalInterrupt},
+    uart::Uart,
 };
+use static_cell::StaticCell;
 
 const LED_MASK: u32 = 1 << 29;
 const INPUT_MASK: u32 = 1 << 15;
@@ -21,11 +22,15 @@ const BUILD_TIME: &str = include!(concat!(env!("OUT_DIR"), "/timestamp.rs"));
 #[panic_handler]
 fn panic(info: &PanicInfo) -> ! {
     riscv::interrupt::disable();
-    let uart0 = unsafe { Uart0::steal() };
-    let mut uart_writer = UartWriter::new(&uart0, true);
+    let uart1 = unsafe { Uart1::steal() };
+    let mut uart_writer = Uart::new(&uart1, true);
     let _ = writeln!(uart_writer, "{}", info);
     loop {}
 }
+
+static UART1: StaticCell<Uart1> = StaticCell::new();
+const BANNER: &str = "##############################################################";
+const XTAL_CLK: u32 = 25_000_000;
 
 #[embassy_executor::main]
 async fn main(spawner: Spawner) -> ! {
@@ -34,10 +39,7 @@ async fn main(spawner: Spawner) -> ! {
     let gpio0 = peripherals.gpio0;
     let gpio1 = peripherals.gpio1;
     let plic = peripherals.plic;
-    let uart0 = peripherals.uart0;
-
-    let mut uart_writer = UartWriter::new(&uart0, true);
-    writeln!(uart_writer, "Synthgut 0.1.0, built {BUILD_TIME}").unwrap();
+    let uart1 = UART1.init(peripherals.uart1);
 
     unsafe {
         gpio0.ddr().modify(|r, w| w.bits(r.bits() | LED_MASK));
@@ -50,8 +52,15 @@ async fn main(spawner: Spawner) -> ! {
         enable_irq(&plic, ExternalInterrupt::GPIO1);
     }
 
-    spawner.spawn(print_hellos(uart0)).unwrap();
+    Timer::after_secs(1).await;
 
+    let mut uart1p = Uart::new(uart1, true);
+    uart1p.init(XTAL_CLK, 115200);
+    writeln!(uart1p, "{BANNER}").unwrap();
+    writeln!(uart1p, "# Synthgut 0.1.0, built {BUILD_TIME} #").unwrap();
+    writeln!(uart1p, "{BANNER}").unwrap();
+
+    spawner.spawn(print_hellos(uart1p)).unwrap();
     loop {
         unsafe { gpio0.dr().modify(|r, w| w.bits(r.bits() ^ LED_MASK)) };
         Timer::after_secs(1).await;
@@ -59,12 +68,10 @@ async fn main(spawner: Spawner) -> ! {
 }
 
 #[embassy_executor::task]
-async fn print_hellos(uart0: Uart0) {
-    let mut uart_writer = UartWriter::new(&uart0, true);
-
+async fn print_hellos(mut uart: Uart<'static>) {
     loop {
         for i in 0..10 {
-            writeln!(&mut uart_writer, "HELLO {i}").unwrap();
+            writeln!(uart, "HELLO {i}").unwrap();
             Timer::after_secs(2).await
         }
     }

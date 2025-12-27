@@ -91,26 +91,50 @@ impl<'a> Uart<'a> {
     }
 
     fn putc_async(&self, value: u8) {
-        critical_section::with(|cs| {
-            let mut uart_data = UART_DATA.borrow_ref_mut(cs);
+        loop {
+            let written = critical_section::with(|cs| {
+                let mut uart_data = UART_DATA.borrow_ref_mut(cs);
 
-            if uart_data.rd_ptr == uart_data.wt_ptr
-                && self.uart.usr().read().tx_fifo_not_full().bit_is_set()
-            {
-                self.uart
-                    .rbr_thr()
-                    .write(|w| unsafe { w.rbr_thr().bits(value) });
-            } else {
-                let wt_ptr = uart_data.wt_ptr;
-                uart_data.buffer[wt_ptr % BUFFER_SIZE] = value;
-                uart_data.wt_ptr = wt_ptr + 1;
+                if uart_data.rd_ptr == uart_data.wt_ptr
+                    && self.uart.usr().read().tx_fifo_not_full().bit_is_set()
+                {
+                    self.uart
+                        .rbr_thr()
+                        .write(|w| unsafe { w.rbr_thr().bits(value) });
+                    return true;
+                }
 
-                self.uart.ier().write(|w| w.tx_empty().set_bit());
+                if uart_data.wt_ptr - uart_data.rd_ptr < BUFFER_SIZE {
+                    let wt_ptr = uart_data.wt_ptr;
+                    uart_data.buffer[wt_ptr % BUFFER_SIZE] = value;
+                    uart_data.wt_ptr = wt_ptr + 1;
+
+                    self.uart.ier().write(|w| w.tx_empty().set_bit());
+                    return true;
+                }
+
+                false
+            });
+            if written {
+                break;
             }
-        });
+        }
     }
 
     pub fn flush(&self) {
+        // 1. Wait for software buffer to drain completely
+        loop {
+            let empty = critical_section::with(|cs| {
+                let data = UART_DATA.borrow_ref(cs);
+                data.rd_ptr == data.wt_ptr
+            });
+            if empty {
+                break;
+            }
+            // Optional: Insert a wfi() or yield here if you want to save power,
+            // but for simple blocking flush, a tight loop is fine.
+        }
+
         while !self.uart.usr().read().tx_fifo_empty().bit_is_set() {}
     }
 

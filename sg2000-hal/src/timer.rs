@@ -22,17 +22,13 @@ impl Sg2000TimerDriver {
     /// Returns `false` if the timestamp is in the past (alarm not set).
     /// Returns `true` if the alarm was successfully set for the future (or disabled if empty)
     fn set_alarm(&self, _cs: &CriticalSection, timestamp: u64) -> bool {
-        let mtimecmp = unsafe { sg2000_pac::Mtimecmp::steal() };
+        let clint = unsafe { sg2000_pac::Clint::steal() };
 
         // If the queue is empty, embassy-time-queue-utils returns u64::MAX.
         // We set the comparator to max to effectively disable the interrupt.
         if timestamp == u64::MAX {
-            mtimecmp
-                .mtimecmp_high()
-                .write(|w| unsafe { w.bits(u32::MAX) });
-            mtimecmp
-                .mtimecmp_low()
-                .write(|w| unsafe { w.bits(u32::MAX) });
+            clint.mtimecmph0().reset();
+            clint.mtimecmpl0().reset();
             return true;
         }
 
@@ -46,14 +42,12 @@ impl Sg2000TimerDriver {
         // 1. Set High to MAX to prevent spurious match while writing Low
         // 2. Write Low
         // 3. Write correct High
-        mtimecmp
-            .mtimecmp_high()
-            .write(|w| unsafe { w.bits(u32::MAX) });
-        mtimecmp
-            .mtimecmp_low()
+        clint.mtimecmph0().reset();
+        clint
+            .mtimecmpl0()
             .write(|w| unsafe { w.bits(cycles as u32) });
-        mtimecmp
-            .mtimecmp_high()
+        clint
+            .mtimecmph0()
             .write(|w| unsafe { w.bits((cycles >> 32) as u32) });
         true
     }

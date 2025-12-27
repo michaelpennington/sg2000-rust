@@ -28,7 +28,7 @@ pub fn init(_config: Config) -> pac::Peripherals {
     }
     peripherals
         .plic
-        .priority_threshold(0)
+        .plic_prio(0)
         .write(|w| unsafe { w.bits(0) });
 
     peripherals

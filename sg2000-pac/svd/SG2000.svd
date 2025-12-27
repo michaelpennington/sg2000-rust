@@ -21,87 +21,207 @@
         <register>
           <dim>1024</dim>
           <dimIncrement>0x4</dimIncrement>
-          <name>priority[%s]</name>
-          <description>Interrupt priority</description>
+          <name>PLIC_PRIO[%s]</name>
+          <description>Interrupt Priority Register (1-1023)</description>
           <addressOffset>0x0</addressOffset>
+          <size>32</size>
           <resetValue>0x00000000</resetValue>
-          <writeConstraint>
-            <range>
-              <minimum>0</minimum>
-              <maximum>4294967295</maximum>
-            </range>
-          </writeConstraint>
           <access>read-write</access>
+          <fields>
+            <field>
+              <name>PRIO</name>
+              <description>Interrupt Priority (0-31)</description>
+              <bitRange>[4:0]</bitRange>
+            </field>
+          </fields>
         </register>
-        <cluster>
-          <dim>15872</dim>
-          <dimIncrement>0x80</dimIncrement>
-          <name>enable[%s]</name>
-          <description>Interrupt Enable Registers</description>
+        <register>
+          <dim>32</dim>
+          <dimIncrement>0x4</dimIncrement>
+          <name>PLIC_IP[%s]</name>
+          <description>Interrupt Pending Register</description>
+          <addressOffset>0x1000</addressOffset>
+          <size>32</size>
+          <access>read-write</access>
+          <fields>
+            <field>
+              <name>IP</name>
+              <description>Interrupt Pending Bits</description>
+              <bitRange>[31:0]</bitRange>
+            </field>
+          </fields>
+        </register>
+        <register>
+          <dim>32</dim>
+          <dimIncrement>0x4</dimIncrement>
+          <name>PLIC_H0_MIE[%s]</name>
+          <description>M-mode Interrupt Enable Register</description>
           <addressOffset>0x2000</addressOffset>
-          <register>
-            <dim>32</dim>
-            <dimIncrement>0x4</dimIncrement>
-            <name>bits[%s]</name>
-            <description>Interrupt Enable Bits</description>
-            <addressOffset>0x0</addressOffset>
-            <resetValue>0x00000000</resetValue>
-          </register>
-        </cluster>
-        <register>
-          <dim>15872</dim>
-          <dimIncrement>0x1000</dimIncrement>
-          <name>priority_threshold[%s]</name>
-          <description>Interrupt Priority Threshold</description>
-          <addressOffset>0x200000</addressOffset>
-          <resetValue>0x00000000</resetValue>
+          <size>32</size>
           <access>read-write</access>
+          <fields>
+            <field>
+              <name>IE</name>
+              <description>Interrupt Enable Bits</description>
+              <bitRange>[31:0]</bitRange>
+            </field>
+          </fields>
         </register>
         <register>
-          <dim>15872</dim>
-          <dimIncrement>0x1000</dimIncrement>
-          <name>claim[%s]</name>
-          <description>Interrupt Claim/Completion</description>
-          <resetValue>0x00000000</resetValue>
-          <addressOffset>0x200004</addressOffset>
+          <dim>32</dim>
+          <dimIncrement>0x4</dimIncrement>
+          <name>PLIC_H0_SIE[%s]</name>
+          <description>S-mode Interrupt Enable Register</description>
+          <addressOffset>0x2080</addressOffset>
+          <size>32</size>
           <access>read-write</access>
+          <fields>
+            <field>
+              <name>IE</name>
+              <description>Interrupt Enable Bits</description>
+              <bitRange>[31:0]</bitRange>
+            </field>
+          </fields>
+        </register>
+        <register>
+          <name>PLIC_PER</name>
+          <description>PLIC Permission Control Register</description>
+          <addressOffset>0x1FFFFC</addressOffset>
+          <size>32</size>
+          <access>read-write</access>
+          <fields>
+            <field>
+              <name>S_PER</name>
+              <description>S-mode Access Permission (0: M-mode only, 1: M/S modes)</description>
+              <bitRange>[0:0]</bitRange>
+            </field>
+          </fields>
+        </register>
+        <register>
+          <name>PLIC_H0_MTH</name>
+          <description>M-mode Interrupt Threshold Register</description>
+          <addressOffset>0x200000</addressOffset>
+          <size>32</size>
+          <access>read-write</access>
+          <fields>
+            <field>
+              <name>THRESHOLD</name>
+              <bitRange>[31:0]</bitRange>
+            </field>
+          </fields>
+        </register>
+        <register>
+          <name>PLIC_H0_MCLAIM</name>
+          <description>M-mode Interrupt Claim/Complete Register</description>
+          <addressOffset>0x200004</addressOffset>
+          <size>32</size>
+          <access>read-write</access>
+          <resetValue>0x00</resetValue>
+          <fields>
+            <field>
+              <name>CLAIM_ID</name>
+              <bitRange>[31:0]</bitRange>
+            </field>
+          </fields>
+        </register>
+        <register>
+          <name>PLIC_H0_STH</name>
+          <description>S-mode Interrupt Threshold Register</description>
+          <addressOffset>0x201000</addressOffset>
+          <size>32</size>
+          <resetValue>0x00</resetValue>
+          <access>read-write</access>
+          <fields>
+            <field>
+              <name>THRESHOLD</name>
+              <bitRange>[31:0]</bitRange>
+            </field>
+          </fields>
+        </register>
+        <register>
+          <name>PLIC_H0_SCLAIM</name>
+          <description>S-mode Interrupt Claim/Complete Register</description>
+          <addressOffset>0x201004</addressOffset>
+          <size>32</size>
+          <access>read-write</access>
+          <resetValue>0x00</resetValue>
+          <fields>
+            <field>
+              <name>CLAIM_ID</name>
+              <bitRange>[31:0]</bitRange>
+            </field>
+          </fields>
         </register>
       </registers>
     </peripheral>
     <peripheral>
-      <name>mtimecmp</name>
-      <description>Timer Interrupt Value</description>
-      <baseAddress>0x74004000</baseAddress>
+      <name>CLINT</name>
+      <description>Core Local Interrupt Controller (XuanTie C906)</description>
+      <baseAddress>0x74000000</baseAddress>
       <addressBlock>
         <offset>0</offset>
-        <size>0x8</size>
+        <size>0x4100000</size>
         <usage>registers</usage>
       </addressBlock>
       <registers>
         <register>
-          <name>mtimecmp_low</name>
-          <description>Low Bits Of Mtimecmp</description>
+          <name>MSIP0</name>
+          <description>M-mode Software Interrupt Pending</description>
           <addressOffset>0x0</addressOffset>
-          <resetValue>0x00000000</resetValue>
-          <writeConstraint>
-            <range>
-              <minimum>0</minimum>
-              <maximum>4294967295</maximum>
-            </range>
-          </writeConstraint>
+          <size>32</size>
+          <resetValue>0x0</resetValue>
+          <access>read-write</access>
+          <fields>
+            <field>
+              <name>MSIP</name>
+              <description>Machine Software Interrupt Pending</description>
+              <bitRange>[0:0]</bitRange>
+            </field>
+          </fields>
+        </register>
+        <register>
+          <name>MTIMECMPL0</name>
+          <description>M-mode Timer Compare Low</description>
+          <addressOffset>0x4000</addressOffset>
+          <size>32</size>
+          <access>read-write</access>
+          <resetValue>0xFFFFFFFF</resetValue>
+        </register>
+        <register>
+          <name>MTIMECMPH0</name>
+          <description>M-mode Timer Compare High</description>
+          <addressOffset>0x4004</addressOffset>
+          <size>32</size>
+          <access>read-write</access>
+          <resetValue>0xFFFFFFFF</resetValue>
+        </register>
+        <register>
+          <name>SSIP0</name>
+          <description>S-mode Software Interrupt Pending</description>
+          <addressOffset>0xC000</addressOffset>
+          <size>32</size>
+          <resetValue>0x0</resetValue>
+          <access>read-write</access>
+          <fields>
+            <field>
+              <name>SSIP</name>
+              <description>Supervisor Software Interrupt Pending</description>
+              <bitRange>[0:0]</bitRange>
+            </field>
+          </fields>
+        </register>
+        <register>
+          <name>STIMECMPL0</name>
+          <description>S-mode Timer Compare Low</description>
+          <addressOffset>0xD000</addressOffset>
+          <size>32</size>
           <access>read-write</access>
         </register>
         <register>
-          <name>mtimecmp_high</name>
-          <description>Low Bits Of Mtimecmp</description>
-          <addressOffset>0x4</addressOffset>
-          <resetValue>0x00000000</resetValue>
-          <writeConstraint>
-            <range>
-              <minimum>0</minimum>
-              <maximum>4294967295</maximum>
-            </range>
-          </writeConstraint>
+          <name>STIMECMPH0</name>
+          <description>S-mode Timer Compare High</description>
+          <addressOffset>0xD004</addressOffset>
+          <size>32</size>
           <access>read-write</access>
         </register>
       </registers>

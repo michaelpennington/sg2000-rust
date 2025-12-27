@@ -18,15 +18,15 @@ impl core::fmt::Debug for Plic {
 }
 #[doc = "Platform-Level Interrupt Controller"]
 pub mod plic;
-#[doc = "Timer Interrupt Value"]
-pub type Mtimecmp = crate::Periph<mtimecmp::RegisterBlock, 0x7400_4000>;
-impl core::fmt::Debug for Mtimecmp {
+#[doc = "Core Local Interrupt Controller (XuanTie C906)"]
+pub type Clint = crate::Periph<clint::RegisterBlock, 0x7400_0000>;
+impl core::fmt::Debug for Clint {
     fn fmt(&self, f: &mut core::fmt::Formatter) -> core::fmt::Result {
-        f.debug_struct("Mtimecmp").finish()
+        f.debug_struct("Clint").finish()
     }
 }
-#[doc = "Timer Interrupt Value"]
-pub mod mtimecmp;
+#[doc = "Core Local Interrupt Controller (XuanTie C906)"]
+pub mod clint;
 #[doc = "GPIO0"]
 pub type Gpio0 = crate::Periph<gpio0::RegisterBlock, 0x0302_0000>;
 impl core::fmt::Debug for Gpio0 {
@@ -142,8 +142,8 @@ static mut DEVICE_PERIPHERALS: bool = false;
 pub struct Peripherals {
     #[doc = "plic"]
     pub plic: Plic,
-    #[doc = "mtimecmp"]
-    pub mtimecmp: Mtimecmp,
+    #[doc = "CLINT"]
+    pub clint: Clint,
     #[doc = "GPIO0"]
     pub gpio0: Gpio0,
     #[doc = "GPIO1"]
@@ -191,7 +191,7 @@ impl Peripherals {
         unsafe { DEVICE_PERIPHERALS = true }
         Peripherals {
             plic: unsafe { Plic::steal() },
-            mtimecmp: unsafe { Mtimecmp::steal() },
+            clint: unsafe { Clint::steal() },
             gpio0: unsafe { Gpio0::steal() },
             gpio1: unsafe { Gpio1::steal() },
             gpio2: unsafe { Gpio2::steal() },

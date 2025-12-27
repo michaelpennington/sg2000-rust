@@ -1,6 +1,5 @@
 use sg2000_pac::{Plic, interrupt::ExternalInterrupt};
 
-const HART_NO: usize = 0;
 const DEFAULT_PRIORITY: u32 = 7;
 const MAX_INTERRUPTS: usize = 128;
 
@@ -17,13 +16,12 @@ pub fn set_handler(irq: ExternalInterrupt, handler: fn()) {
 
 pub fn enable_irq(plic: &Plic, irq: ExternalInterrupt) {
     let irq_no = irq as usize;
-    plic.priority(irq_no)
+    plic.plic_prio(irq_no)
         .write(|w| unsafe { w.bits(DEFAULT_PRIORITY) });
     let reg_index = irq_no / 32;
     let bit_index = irq_no % 32;
 
-    plic.enable(HART_NO)
-        .bits(reg_index)
+    plic.plic_h0_mie(reg_index)
         .modify(|r, w| unsafe { w.bits(r.bits() | (1 << bit_index)) });
 }
 
@@ -32,7 +30,7 @@ pub extern "C" fn MachineExternal() {
     let plic = unsafe { sg2000_pac::Plic::steal() };
 
     loop {
-        let claim = plic.claim(HART_NO);
+        let claim = plic.plic_h0_mclaim();
         let irq_no = claim.read().bits();
 
         if irq_no == 0 {

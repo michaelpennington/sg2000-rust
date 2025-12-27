@@ -110,6 +110,10 @@ impl<'a> Uart<'a> {
         });
     }
 
+    pub fn flush(&self) {
+        while !self.uart.usr().read().tx_fifo_empty().bit_is_set() {}
+    }
+
     pub fn read_divisor(&self) -> u16 {
         self.uart.lcr().modify(|_, w| w.div_latch().set_bit());
 
@@ -129,10 +133,6 @@ fn uart1_handler() {
     if iir.int_id().variant() == Some(IntStatus::Thrempty) {
         critical_section::with(|cs| {
             let mut uart_data = UART_DATA.borrow_ref_mut(cs);
-            if uart_data.rd_ptr == uart_data.wt_ptr {
-                uart.ier().modify(|_, w| w.tx_empty().clear_bit());
-                return;
-            }
             // TODO: read number of bytes in FIFO from TFL rather than checking each time
             while uart_data.rd_ptr < uart_data.wt_ptr
                 && uart.usr().read().tx_fifo_not_full().bit_is_set()
@@ -145,7 +145,7 @@ fn uart1_handler() {
             }
 
             if uart_data.rd_ptr == uart_data.wt_ptr {
-                uart.ier().modify(|_, w| w.tx_empty().clear_bit());
+                uart.ier().reset();
             }
         });
     }

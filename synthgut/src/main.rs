@@ -60,6 +60,8 @@ async fn main(spawner: Spawner) -> ! {
     writeln!(uart1p, "# Synthgut 0.1.0, built {BUILD_TIME} #").unwrap();
     writeln!(uart1p, "{BANNER}").unwrap();
 
+    uart1p.flush();
+
     spawner.spawn(print_hellos(uart1p)).unwrap();
     loop {
         unsafe { gpio0.dr().modify(|r, w| w.bits(r.bits() ^ LED_MASK)) };

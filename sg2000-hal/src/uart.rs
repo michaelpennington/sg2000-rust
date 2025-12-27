@@ -1,10 +1,37 @@
-use core::fmt;
+use core::{cell::RefCell, fmt};
 
-use sg2000_pac::uart0;
+use critical_section::Mutex;
+use sg2000_pac::{
+    interrupt::ExternalInterrupt,
+    uart0::{self, iir::IntStatus},
+};
+
+use crate::irq::{enable_irq, set_handler};
 
 pub struct Uart<'a> {
-    pub uart: &'a uart0::RegisterBlock,
+    uart: &'a uart0::RegisterBlock,
     add_cr: bool,
+}
+
+const BUFFER_SIZE: usize = 128;
+
+static UART_DATA: Mutex<RefCell<UartData>> = Mutex::new(RefCell::new(UartData::default()));
+
+#[derive(Clone, Copy, Debug)]
+struct UartData {
+    rd_ptr: usize,
+    wt_ptr: usize,
+    buffer: [u8; BUFFER_SIZE],
+}
+
+impl UartData {
+    const fn default() -> Self {
+        Self {
+            rd_ptr: 0,
+            wt_ptr: 0,
+            buffer: [0; BUFFER_SIZE],
+        }
+    }
 }
 
 impl<'a> Uart<'a> {
@@ -46,12 +73,35 @@ impl<'a> Uart<'a> {
                 .set_bit()
                 .txfifo_rst()
                 .set_bit()
+                .tx_empty_trig()
+                .quarter()
         });
+
+        self.uart.ier().write(|w| w.tx_empty().set_bit());
+
+        let plic = unsafe { sg2000_pac::Plic::steal() };
+        set_handler(ExternalInterrupt::UART1, uart1_handler);
+        enable_irq(&plic, ExternalInterrupt::UART1);
     }
 
     fn putc_blocking(&self, value: u8) {
         while !self.uart.lsr().read().tx_empty().bit() {}
         unsafe { self.uart.rbr_thr().write(|w| w.rbr_thr().bits(value)) };
+    }
+
+    fn putc_async(&self, value: u8) {
+        if self.uart.usr().read().tx_fifo_not_full().bit_is_set() {
+            self.uart
+                .rbr_thr()
+                .write(|w| unsafe { w.rbr_thr().bits(value) });
+        } else {
+            critical_section::with(|cs| {
+                let mut uart_data = UART_DATA.borrow_ref_mut(cs);
+                let wt_ptr = uart_data.wt_ptr;
+                uart_data.buffer[wt_ptr % BUFFER_SIZE] = value;
+                uart_data.wt_ptr = wt_ptr + 1;
+            });
+        }
     }
 
     pub fn read_divisor(&self) -> u16 {
@@ -66,13 +116,40 @@ impl<'a> Uart<'a> {
     }
 }
 
+fn uart1_handler() {
+    loop {
+        let uart = unsafe { sg2000_pac::Uart1::steal() };
+        let iir = uart.iir().read();
+
+        match iir.int_id().variant() {
+            Some(IntStatus::Thrempty) => critical_section::with(|cs| {
+                let mut uart_data = UART_DATA.borrow_ref_mut(cs);
+                if uart_data.rd_ptr == uart_data.wt_ptr {
+                    return;
+                }
+                // TODO: read number of bytes in FIFO from TFL rather than checking each time
+                while uart_data.rd_ptr < uart_data.wt_ptr
+                    && uart.usr().read().tx_fifo_not_full().bit_is_set()
+                {
+                    uart.rbr_thr().write(|w| unsafe {
+                        w.rbr_thr()
+                            .bits(uart_data.buffer[uart_data.rd_ptr % BUFFER_SIZE])
+                    });
+                    uart_data.rd_ptr += 1;
+                }
+            }),
+            _ => break,
+        }
+    }
+}
+
 impl<'a> fmt::Write for Uart<'a> {
     fn write_str(&mut self, s: &str) -> fmt::Result {
         for b in s.bytes() {
             if b == b'\n' && self.add_cr {
-                self.putc_blocking(b'\r');
+                self.putc_async(b'\r');
             }
-            self.putc_blocking(b);
+            self.putc_async(b);
         }
         Ok(())
     }

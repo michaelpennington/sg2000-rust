@@ -77,31 +77,37 @@ impl<'a> Uart<'a> {
                 .quarter()
         });
 
-        self.uart.ier().write(|w| w.tx_empty().set_bit());
+        // self.uart.ier().write(|w| w.tx_empty().set_bit());
 
         let plic = unsafe { sg2000_pac::Plic::steal() };
         set_handler(ExternalInterrupt::UART1, uart1_handler);
         enable_irq(&plic, ExternalInterrupt::UART1);
     }
 
+    #[allow(dead_code)]
     fn putc_blocking(&self, value: u8) {
         while !self.uart.lsr().read().tx_empty().bit() {}
         unsafe { self.uart.rbr_thr().write(|w| w.rbr_thr().bits(value)) };
     }
 
     fn putc_async(&self, value: u8) {
-        if self.uart.usr().read().tx_fifo_not_full().bit_is_set() {
-            self.uart
-                .rbr_thr()
-                .write(|w| unsafe { w.rbr_thr().bits(value) });
-        } else {
-            critical_section::with(|cs| {
-                let mut uart_data = UART_DATA.borrow_ref_mut(cs);
+        critical_section::with(|cs| {
+            let mut uart_data = UART_DATA.borrow_ref_mut(cs);
+
+            if uart_data.rd_ptr == uart_data.wt_ptr
+                && self.uart.usr().read().tx_fifo_not_full().bit_is_set()
+            {
+                self.uart
+                    .rbr_thr()
+                    .write(|w| unsafe { w.rbr_thr().bits(value) });
+            } else {
                 let wt_ptr = uart_data.wt_ptr;
                 uart_data.buffer[wt_ptr % BUFFER_SIZE] = value;
                 uart_data.wt_ptr = wt_ptr + 1;
-            });
-        }
+
+                self.uart.ier().write(|w| w.tx_empty().set_bit());
+            }
+        });
     }
 
     pub fn read_divisor(&self) -> u16 {
@@ -117,29 +123,31 @@ impl<'a> Uart<'a> {
 }
 
 fn uart1_handler() {
-    loop {
-        let uart = unsafe { sg2000_pac::Uart1::steal() };
-        let iir = uart.iir().read();
+    let uart = unsafe { sg2000_pac::Uart1::steal() };
+    let iir = uart.iir().read();
 
-        match iir.int_id().variant() {
-            Some(IntStatus::Thrempty) => critical_section::with(|cs| {
-                let mut uart_data = UART_DATA.borrow_ref_mut(cs);
-                if uart_data.rd_ptr == uart_data.wt_ptr {
-                    return;
-                }
-                // TODO: read number of bytes in FIFO from TFL rather than checking each time
-                while uart_data.rd_ptr < uart_data.wt_ptr
-                    && uart.usr().read().tx_fifo_not_full().bit_is_set()
-                {
-                    uart.rbr_thr().write(|w| unsafe {
-                        w.rbr_thr()
-                            .bits(uart_data.buffer[uart_data.rd_ptr % BUFFER_SIZE])
-                    });
-                    uart_data.rd_ptr += 1;
-                }
-            }),
-            _ => break,
-        }
+    if iir.int_id().variant() == Some(IntStatus::Thrempty) {
+        critical_section::with(|cs| {
+            let mut uart_data = UART_DATA.borrow_ref_mut(cs);
+            if uart_data.rd_ptr == uart_data.wt_ptr {
+                uart.ier().modify(|_, w| w.tx_empty().clear_bit());
+                return;
+            }
+            // TODO: read number of bytes in FIFO from TFL rather than checking each time
+            while uart_data.rd_ptr < uart_data.wt_ptr
+                && uart.usr().read().tx_fifo_not_full().bit_is_set()
+            {
+                uart.rbr_thr().write(|w| unsafe {
+                    w.rbr_thr()
+                        .bits(uart_data.buffer[uart_data.rd_ptr % BUFFER_SIZE])
+                });
+                uart_data.rd_ptr += 1;
+            }
+
+            if uart_data.rd_ptr == uart_data.wt_ptr {
+                uart.ier().modify(|_, w| w.tx_empty().clear_bit());
+            }
+        });
     }
 }
 

@@ -694,10 +694,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "xtask"
-version = "0.1.0"
-
-[[package]]
 name = "xuantie-riscv"
 version = "0.0.0"
 source = "git+https://github.com/rustsbi/xuantie#ed069578147b90a9625742ec011d3cbb64a0669b"

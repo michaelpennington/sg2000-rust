@@ -1,5 +1,5 @@
 [workspace]
-members = ["sg2000-hal","sg2000-pac", "synthgut", "xtask"]
+members = ["sg2000-hal","sg2000-pac", "synthgut"]
 resolver = "3"
 
 [profile.release]

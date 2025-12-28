@@ -1,0 +1,1 @@
+{"author":{"id":"b6e9e97fa351e8c19832f3c31f97ad23ebd8560d89637e082fc39ab8b1f9e7fc"},"ops":[{"type":1,"timestamp":1766889852,"nonce":"/4jLW46cWVCCd39s/oBCe2w9NOs=","title":"UART Config","message":"Define configuration struct for UART and handle that dynamically. Also require that for `new` \nrather than having a separate `init` function.","files":null}]}

@@ -1,1 +1,1 @@
-{"author":{"id":"b6e9e97fa351e8c19832f3c31f97ad23ebd8560d89637e082fc39ab8b1f9e7fc"},"ops":[{"type":1,"timestamp":1766891045,"nonce":"Xv3qIp9BpMqbd1l1+sEjaqGsOT0=","title":"Debugging","message":"Get debugging working on the lil core","files":null}]}
+{"author":{"id":"b6e9e97fa351e8c19832f3c31f97ad23ebd8560d89637e082fc39ab8b1f9e7fc"},"ops":[{"type":5,"timestamp":1766891062,"nonce":"WvxRB2Mt17D6OGc7u/aDv4Befzg=","added":["feature","difficulty:very-hard"],"removed":null}]}

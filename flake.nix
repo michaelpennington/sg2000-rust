@@ -28,6 +28,7 @@
           nativeBuildInputs = with pkgs; [
             just
             cloc
+            git-bug
             cargo-generate
             cargo-binutils
             svd2rust

@@ -175,6 +175,21 @@ impl<'a> Uart<'a> {
 
         (high as u16) << 8 | (low as u16)
     }
+
+    pub fn write_fmt(
+        &mut self,
+        args: core::fmt::Arguments<'_>,
+    ) -> impl core::future::Future<Output = ()> + '_ {
+        use core::fmt::Write;
+
+        let mut buf = heapless::String::<128>::new();
+
+        let _ = buf.write_fmt(args);
+
+        async move {
+            self.write_str(&buf).await;
+        }
+    }
 }
 
 impl<'a> Write for Uart<'a> {

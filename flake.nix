@@ -27,6 +27,7 @@
         devShells.default = pkgs.mkShell {
           nativeBuildInputs = with pkgs; [
             just
+            cloc
             cargo-generate
             cargo-binutils
             svd2rust

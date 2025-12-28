@@ -9,7 +9,8 @@ use riscv::asm::nop;
 use sg2000_hal::{
     Config, init,
     irq::{enable_irq, set_handler},
-    pac::{Uart1, interrupt::ExternalInterrupt},
+    pac::interrupt::ExternalInterrupt,
+    peripherals,
     uart::{self, Uart},
 };
 use static_cell::StaticCell;
@@ -21,7 +22,8 @@ const BUILD_TIME: &str = include!(concat!(env!("OUT_DIR"), "/timestamp.rs"));
 #[panic_handler]
 fn panic(info: &PanicInfo) -> ! {
     riscv::interrupt::disable();
-    let uart1 = unsafe { Uart1::steal() };
+    // Use the HAL wrapper's steal method
+    let uart1 = unsafe { peripherals::Uart1::steal() };
     let uart_writer = Uart::new(&uart1, true);
     let mut buf = heapless::String::<128>::new();
     let _ = write!(buf, "{info}");
@@ -29,7 +31,8 @@ fn panic(info: &PanicInfo) -> ! {
     loop {}
 }
 
-static UART1: StaticCell<Uart1> = StaticCell::new();
+// Uart1 here refers to the wrapper type
+static UART1: StaticCell<peripherals::Uart1> = StaticCell::new();
 const BANNER: &str = "##############################################################";
 
 #[embassy_executor::main]
@@ -49,11 +52,13 @@ async fn main(spawner: Spawner) -> ! {
             .modify(|r, w| w.bits(r.bits() | INPUT_MASK));
         gpio1.inten().modify(|r, w| w.bits(r.bits() | INPUT_MASK));
         set_handler(ExternalInterrupt::GPIO1, gpio1_handler);
+        // enable_irq takes &pac::Plic. plic is peripherals::Plic, which derefs to pac::Plic.
         enable_irq(&plic, ExternalInterrupt::GPIO1);
     }
 
     Timer::after_secs(1).await;
 
+    // Uart::new takes &pac::Uart1. uart1 is &mut peripherals::Uart1, which derefs to pac::Uart1.
     let mut uart1p = Uart::new(uart1, true);
     uart1p.init(uart::Config::default()).unwrap();
     writeln!(uart1p, "{BANNER}").await;
@@ -80,7 +85,8 @@ async fn print_hellos(mut uart: Uart<'static>) {
 }
 
 fn gpio1_handler() {
-    let peripherals = unsafe { sg2000_hal::pac::Peripherals::steal() };
+    // Also update interrupt handler to use HAL peripherals steal
+    let peripherals = unsafe { peripherals::Peripherals::steal() };
     let gpio0 = peripherals.gpio0;
 
     unsafe { gpio0.dr().modify(|r, w| w.bits(r.bits() ^ LED_MASK)) };

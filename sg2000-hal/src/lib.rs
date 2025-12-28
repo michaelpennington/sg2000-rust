@@ -5,6 +5,7 @@ pub mod clock;
 pub mod irq;
 pub mod resource_table;
 pub mod uart;
+pub mod peripherals;
 
 #[cfg(feature = "embassy")]
 pub mod timer;
@@ -17,8 +18,8 @@ impl Default for Config {
     }
 }
 
-pub fn init(_config: Config) -> pac::Peripherals {
-    let peripherals = pac::Peripherals::take().unwrap();
+pub fn init(_config: Config) -> peripherals::Peripherals {
+    let peripherals = peripherals::Peripherals::take().unwrap();
 
     unsafe {
         xuantie_riscv::register::mhcr::set_ie();

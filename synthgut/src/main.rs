@@ -10,7 +10,7 @@ use sg2000_hal::{
     Config, init,
     irq::{enable_irq, set_handler},
     pac::{Uart1, interrupt::ExternalInterrupt},
-    uart::Uart,
+    uart::{self, Uart},
 };
 use static_cell::StaticCell;
 
@@ -31,7 +31,6 @@ fn panic(info: &PanicInfo) -> ! {
 
 static UART1: StaticCell<Uart1> = StaticCell::new();
 const BANNER: &str = "##############################################################";
-const XTAL_CLK: u32 = 25_000_000;
 
 #[embassy_executor::main]
 async fn main(spawner: Spawner) -> ! {
@@ -56,7 +55,7 @@ async fn main(spawner: Spawner) -> ! {
     Timer::after_secs(1).await;
 
     let mut uart1p = Uart::new(uart1, true);
-    uart1p.init(XTAL_CLK, 115200);
+    uart1p.init(uart::Config::default()).unwrap();
     writeln!(uart1p, "{BANNER}").await;
     writeln!(uart1p, "# Synthgut 0.1.0, built {BUILD_TIME} #").await;
     writeln!(uart1p, "{BANNER}").await;

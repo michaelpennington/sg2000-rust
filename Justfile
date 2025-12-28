@@ -30,6 +30,10 @@ generate:
 doc:
     cargo doc --no-deps --open
 
+# Format code
+fmt:
+    cargo fmt
+
 # Check everything (host tools + firmware)
 check:
   cargo check -p sg2000-hal --target riscv64gc-unknown-none-elf

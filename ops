@@ -1,0 +1,1 @@
+{"author":{"id":"b6e9e97fa351e8c19832f3c31f97ad23ebd8560d89637e082fc39ab8b1f9e7fc"},"ops":[{"type":1,"timestamp":1766890280,"nonce":"d+Tk7ufULL74tMiriIKtxQ01xZs=","title":"Requires double start","message":"For some reason when I first boot linux, I need to start, stop, then start the processor to get\nit to work.","files":null}]}

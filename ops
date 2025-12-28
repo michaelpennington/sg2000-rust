@@ -1,0 +1,1 @@
+{"author":{"id":"b6e9e97fa351e8c19832f3c31f97ad23ebd8560d89637e082fc39ab8b1f9e7fc"},"ops":[{"type":1,"timestamp":1766894546,"nonce":"uW130wCasmDN1RC4YdqDfzsLRQk=","title":"Make `Uart::write_str` more efficient","message":"In Uart::write_str, find the next newline then write all bytes until then, then write \"\\r\\n\", etc...","files":null}]}

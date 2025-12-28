@@ -5,6 +5,8 @@ use core::{
     task::{Poll, Waker},
 };
 
+pub mod config;
+
 use critical_section::Mutex;
 use embedded_io::ErrorType;
 use embedded_io_async::Write;
@@ -13,7 +15,12 @@ use sg2000_pac::{
     uart0::{self, iir::IntStatus},
 };
 
-use crate::irq::{enable_irq, set_handler};
+use crate::{
+    clock::ClockSource,
+    irq::{enable_irq, set_handler},
+};
+
+pub use crate::uart::config::Config;
 
 pub struct Uart<'a> {
     uart: &'a uart0::RegisterBlock,
@@ -69,10 +76,15 @@ impl<'a> Uart<'a> {
         Uart { uart, add_cr }
     }
 
-    pub fn init(&self, source_clock_hz: u32, baud_rate: u32) {
+    pub fn init(&self, config: Config) -> Result<(), UartError> {
         self.uart.ier().write(|w| unsafe { w.bits(0x00) });
 
-        let divisor = (source_clock_hz + 8 * baud_rate) / (16 * baud_rate);
+        if !config.validate() {
+            return Err(UartError);
+        }
+
+        let divisor = (config.clock().hz().as_hz() as u32 + 8 * config.baud_rate())
+            / (16 * config.baud_rate());
         let divisor_low = (divisor & 0xFF) as u8;
         let divisor_high = ((divisor >> 8) & 0xFF) as u8;
 
@@ -85,15 +97,31 @@ impl<'a> Uart<'a> {
             .dlh()
             .write(|w| unsafe { w.dlh().bits(divisor_high) });
 
-        self.uart.lcr().write(|w| {
-            w.div_latch()
-                .clear_bit()
-                .data_len()
-                .eight()
-                .stop_bits()
-                .one()
-                .parity_en()
-                .clear_bit()
+        self.uart.lcr().write(|mut w| {
+            w = w.div_latch().clear_bit();
+            w = match config.data_len() {
+                config::DataLen::Five => w.data_len().five(),
+                config::DataLen::Six => w.data_len().six(),
+                config::DataLen::Seven => w.data_len().seven(),
+                config::DataLen::Eight => w.data_len().eight(),
+            };
+            w = match config.stop_bits() {
+                config::StopBits::One => w.stop_bits().clear_bit(),
+                config::StopBits::OnePFive | config::StopBits::Two => w.stop_bits().set_bit(),
+            };
+            match config.parity() {
+                config::ParityMode::None => w.parity_en().clear_bit(),
+                config::ParityMode::Odd => w.parity_en().set_bit(),
+                config::ParityMode::Even => w.parity_en().set_bit().par_even().set_bit(),
+                config::ParityMode::Mark => w.parity_en().set_bit().stick_par().set_bit(),
+                config::ParityMode::Space => w
+                    .parity_en()
+                    .set_bit()
+                    .par_even()
+                    .set_bit()
+                    .stick_par()
+                    .set_bit(),
+            }
         });
 
         self.uart.fcr().write(|w| {
@@ -112,6 +140,8 @@ impl<'a> Uart<'a> {
         let plic = unsafe { sg2000_pac::Plic::steal() };
         set_handler(ExternalInterrupt::UART1, uart1_handler);
         enable_irq(&plic, ExternalInterrupt::UART1);
+
+        Ok(())
     }
 
     fn putc_blocking(&self, value: u8) {
@@ -149,7 +179,6 @@ impl<'a> Uart<'a> {
     }
 
     pub fn flush(&self) {
-        // 1. Wait for software buffer to drain completely
         loop {
             let empty = critical_section::with(|cs| {
                 let data = UART_DATA.borrow_ref(cs);
@@ -158,8 +187,6 @@ impl<'a> Uart<'a> {
             if empty {
                 break;
             }
-            // Optional: Insert a wfi() or yield here if you want to save power,
-            // but for simple blocking flush, a tight loop is fine.
         }
 
         while !self.uart.usr().read().tx_fifo_empty().bit_is_set() {}

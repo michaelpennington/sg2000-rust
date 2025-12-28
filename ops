@@ -1,1 +1,1 @@
-{"author":{"id":"b6e9e97fa351e8c19832f3c31f97ad23ebd8560d89637e082fc39ab8b1f9e7fc"},"ops":[{"type":5,"timestamp":1766889721,"nonce":"M/aTpTPddcE6BX+6pjf5w/QGCTA=","added":["difficulty:easy"],"removed":null}]}
+{"author":{"id":"b6e9e97fa351e8c19832f3c31f97ad23ebd8560d89637e082fc39ab8b1f9e7fc"},"ops":[{"type":8,"timestamp":1766890549,"nonce":"k2ILz0rZBm9kRkbjHrm9bgcBJ5A=","target":"1fbdb3b50b9f82a62c1defd1dc067cc445755b5aa3a624d02a6248ff823edeb2","new_metadata":{"github-id":"I_kwDOQr8n7M7gbXs5","github-url":"https://github.com/michaelpennington/sg2000-rust/issues/9"}}]}

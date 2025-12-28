@@ -136,13 +136,13 @@ impl<'a> Uart<'a> {
 
     pub async fn write_str(&mut self, s: &str) {
         if self.add_cr {
-            for b in s.bytes() {
-                if b == b'\n' {
-                    let _ = self.write_all(b"\r\n").await;
-                } else {
-                    let _ = self.write_all(&[b]).await;
-                }
+            let mut s = s;
+            while let Some(next_newline) = s.find('\n') {
+                let _ = self.write_all(&s.as_bytes()[..next_newline]).await;
+                let _ = self.write_all(b"\r\n").await;
+                s = &s[next_newline + 1..];
             }
+            let _ = self.write_all(s.as_bytes()).await;
         } else {
             let _ = self.write_all(s.as_bytes()).await;
         }

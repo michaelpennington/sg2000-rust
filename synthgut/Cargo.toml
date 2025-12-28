@@ -7,6 +7,8 @@ edition = "2024"
 critical-section = "1.2.0"
 embassy-executor = { version = "0.9.1", features = ["executor-thread", "nightly", "arch-riscv32"] }
 embassy-time = "0.5.0"
+embedded-io-async = "0.7.0"
+heapless = "0.9.2"
 riscv = { version = "0.15.0", features = ["critical-section-single-hart"] }
 riscv-rt = "0.16.0"
 sg2000-hal = { version = "0.1.0", path = "../sg2000-hal", features = ["embassy"] }

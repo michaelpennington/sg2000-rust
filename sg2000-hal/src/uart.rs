@@ -1,6 +1,13 @@
-use core::{cell::RefCell, fmt};
+use core::{
+    cell::RefCell,
+    fmt,
+    future::poll_fn,
+    task::{Poll, Waker},
+};
 
 use critical_section::Mutex;
+use embedded_io::ErrorType;
+use embedded_io_async::Write;
 use sg2000_pac::{
     interrupt::ExternalInterrupt,
     uart0::{self, iir::IntStatus},
@@ -17,11 +24,12 @@ const BUFFER_SIZE: usize = 128;
 
 static UART_DATA: Mutex<RefCell<UartData>> = Mutex::new(RefCell::new(UartData::default()));
 
-#[derive(Clone, Copy, Debug)]
+#[derive(Debug)]
 struct UartData {
     rd_ptr: usize,
     wt_ptr: usize,
     buffer: [u8; BUFFER_SIZE],
+    waker: Option<Waker>,
 }
 
 impl UartData {
@@ -30,8 +38,30 @@ impl UartData {
             rd_ptr: 0,
             wt_ptr: 0,
             buffer: [0; BUFFER_SIZE],
+            waker: None,
         }
     }
+}
+
+#[derive(Debug)]
+pub struct UartError;
+
+impl core::fmt::Display for UartError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        writeln!(f, "Uart error! Weed eater")
+    }
+}
+
+impl core::error::Error for UartError {}
+
+impl embedded_io_async::Error for UartError {
+    fn kind(&self) -> embedded_io::ErrorKind {
+        embedded_io_async::ErrorKind::Other
+    }
+}
+
+impl<'a> ErrorType for Uart<'a> {
+    type Error = UartError;
 }
 
 impl<'a> Uart<'a> {
@@ -84,40 +114,37 @@ impl<'a> Uart<'a> {
         enable_irq(&plic, ExternalInterrupt::UART1);
     }
 
-    #[allow(dead_code)]
     fn putc_blocking(&self, value: u8) {
         while !self.uart.lsr().read().tx_empty().bit() {}
         unsafe { self.uart.rbr_thr().write(|w| w.rbr_thr().bits(value)) };
     }
 
-    fn putc_async(&self, value: u8) {
-        loop {
-            let written = critical_section::with(|cs| {
-                let mut uart_data = UART_DATA.borrow_ref_mut(cs);
-
-                if uart_data.rd_ptr == uart_data.wt_ptr
-                    && self.uart.usr().read().tx_fifo_not_full().bit_is_set()
-                {
-                    self.uart
-                        .rbr_thr()
-                        .write(|w| unsafe { w.rbr_thr().bits(value) });
-                    return true;
+    pub fn write_str_blocking(&self, s: &str) {
+        if self.add_cr {
+            for b in s.bytes() {
+                if b == b'\n' {
+                    self.putc_blocking(b'\r');
                 }
-
-                if uart_data.wt_ptr - uart_data.rd_ptr < BUFFER_SIZE {
-                    let wt_ptr = uart_data.wt_ptr;
-                    uart_data.buffer[wt_ptr % BUFFER_SIZE] = value;
-                    uart_data.wt_ptr = wt_ptr + 1;
-
-                    self.uart.ier().write(|w| w.tx_empty().set_bit());
-                    return true;
-                }
-
-                false
-            });
-            if written {
-                break;
+                self.putc_blocking(b);
             }
+        } else {
+            for b in s.bytes() {
+                self.putc_blocking(b);
+            }
+        }
+    }
+
+    pub async fn write_str(&mut self, s: &str) {
+        if self.add_cr {
+            for b in s.bytes() {
+                if b == b'\n' {
+                    let _ = self.write_all(b"\r\n").await;
+                } else {
+                    let _ = self.write_all(&[b]).await;
+                }
+            }
+        } else {
+            let _ = self.write_all(s.as_bytes()).await;
         }
     }
 
@@ -150,6 +177,64 @@ impl<'a> Uart<'a> {
     }
 }
 
+impl<'a> Write for Uart<'a> {
+    async fn write(&mut self, buf: &[u8]) -> Result<usize, Self::Error> {
+        let uart = self.uart;
+        poll_fn(|cx| {
+            critical_section::with(|cs| {
+                let mut uart_data = UART_DATA.borrow_ref_mut(cs);
+
+                if uart_data.wt_ptr - uart_data.rd_ptr >= BUFFER_SIZE {
+                    uart_data.waker = Some(cx.waker().clone());
+                    uart.ier().write(|w| w.tx_empty().set_bit());
+                    return Poll::Pending;
+                }
+                let mut count = 0;
+                for &byte in buf {
+                    if uart_data.wt_ptr - uart_data.rd_ptr >= BUFFER_SIZE {
+                        uart_data.waker = Some(cx.waker().clone());
+                        break;
+                    }
+                    let wt_idx = uart_data.wt_ptr;
+                    uart_data.buffer[wt_idx % BUFFER_SIZE] = byte;
+                    uart_data.wt_ptr = wt_idx + 1;
+                    count += 1;
+                }
+
+                uart.ier().write(|w| w.tx_empty().set_bit());
+
+                Poll::Ready(Ok(count))
+            })
+        })
+        .await
+    }
+
+    async fn flush(&mut self) -> Result<(), Self::Error> {
+        let uart = self.uart;
+
+        poll_fn(|cx| {
+            critical_section::with(|cs| {
+                let mut uart_data = UART_DATA.borrow_ref_mut(cs);
+
+                if uart_data.rd_ptr != uart_data.wt_ptr {
+                    uart_data.waker = Some(cx.waker().clone());
+                    uart.ier().write(|w| w.tx_empty().set_bit());
+                    return Poll::Pending;
+                }
+
+                if uart.usr().read().tx_fifo_empty().bit_is_set() {
+                    Poll::Ready(Ok(()))
+                } else {
+                    uart_data.waker = Some(cx.waker().clone());
+                    uart.ier().write(|w| w.tx_empty().set_bit());
+                    Poll::Pending
+                }
+            })
+        })
+        .await
+    }
+}
+
 fn uart1_handler() {
     let uart = unsafe { sg2000_pac::Uart1::steal() };
     let iir = uart.iir().read();
@@ -171,18 +256,10 @@ fn uart1_handler() {
             if uart_data.rd_ptr == uart_data.wt_ptr {
                 uart.ier().reset();
             }
-        });
-    }
-}
 
-impl<'a> fmt::Write for Uart<'a> {
-    fn write_str(&mut self, s: &str) -> fmt::Result {
-        for b in s.bytes() {
-            if b == b'\n' && self.add_cr {
-                self.putc_async(b'\r');
+            if let Some(waker) = uart_data.waker.take() {
+                waker.wake();
             }
-            self.putc_async(b);
-        }
-        Ok(())
+        });
     }
 }

@@ -3,7 +3,6 @@
 #![no_main]
 
 use core::{fmt::Write, panic::PanicInfo};
-
 use embassy_executor::Spawner;
 use embassy_time::Timer;
 use riscv::asm::nop;
@@ -23,13 +22,15 @@ const BUILD_TIME: &str = include!(concat!(env!("OUT_DIR"), "/timestamp.rs"));
 fn panic(info: &PanicInfo) -> ! {
     riscv::interrupt::disable();
     let uart1 = unsafe { Uart1::steal() };
-    let mut uart_writer = Uart::new(&uart1, true);
-    let _ = writeln!(uart_writer, "{}", info);
+    let uart_writer = Uart::new(&uart1, true);
+    let mut buf = heapless::String::<128>::new();
+    let _ = write!(buf, "{info}");
+    uart_writer.write_str_blocking(&buf);
     loop {}
 }
 
 static UART1: StaticCell<Uart1> = StaticCell::new();
-const BANNER: &str = "##############################################################";
+const BANNER: &str = "##############################################################\n";
 const XTAL_CLK: u32 = 25_000_000;
 
 #[embassy_executor::main]
@@ -56,9 +57,11 @@ async fn main(spawner: Spawner) -> ! {
 
     let mut uart1p = Uart::new(uart1, true);
     uart1p.init(XTAL_CLK, 115200);
-    writeln!(uart1p, "{BANNER}").unwrap();
-    writeln!(uart1p, "# Synthgut 0.1.0, built {BUILD_TIME} #").unwrap();
-    writeln!(uart1p, "{BANNER}").unwrap();
+    uart1p.write_str(BANNER).await;
+    let mut str = heapless::String::<128>::new();
+    writeln!(str, "# Synthgut 0.1.0, built {BUILD_TIME} #").unwrap();
+    uart1p.write_str(&str).await;
+    uart1p.write_str(BANNER).await;
 
     uart1p.flush();
 
@@ -72,9 +75,13 @@ async fn main(spawner: Spawner) -> ! {
 #[embassy_executor::task]
 async fn print_hellos(mut uart: Uart<'static>) {
     loop {
-        for i in 0..10 {
-            writeln!(uart, "HELLO {i}").unwrap();
-            Timer::after_secs(2).await
+        let mut bytes = [b'0', b'\n'];
+        for _ in 0..10 {
+            const HELLO: &str = "HELLO ";
+            uart.write_str(HELLO).await;
+            uart.write_str(str::from_utf8(&bytes).unwrap()).await;
+            Timer::after_secs(2).await;
+            bytes[0] += 1;
         }
     }
 }

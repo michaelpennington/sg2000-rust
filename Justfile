@@ -11,9 +11,20 @@ build:
 size: build
     rust-size target/riscv64gc-unknown-none-elf/release/synthgut
 
-# Run the xtask automation (wraps your .cargo/config.toml alias)
-xtask +args:
-    cargo xtask {{args}}
+# Build and disassemble binary
+objdump: build
+    rust-objdump --disassemble --no-show-raw-insn --print-imm-hex target/riscv64gc-unknown-none-elf/release/synthgut
+
+# Build and transfer binary to device via SFTP
+flash: build
+    echo "put target/riscv64gc-unknown-none-elf/release/synthgut synthgut.elf" | sftp -b - debian@10.42.0.1
+
+# Generate PAC from SVD
+generate:
+    cd sg2000-pac && svd2rust -c svd2rust.toml -i svd/SG2000.svd --strict --atomics
+    cd sg2000-pac && form -i lib.rs -o src
+    rm sg2000-pac/lib.rs
+    cd sg2000-pac && cargo fmt
 
 # Generate documentation for the workspace
 doc:
@@ -21,7 +32,6 @@ doc:
 
 # Check everything (host tools + firmware)
 check:
-  cargo check -p xtask --target x86_64-unknown-linux-gnu
   cargo check -p sg2000-hal --target riscv64gc-unknown-none-elf
   cargo check -p sg2000-pac --target riscv64gc-unknown-none-elf
   cargo check -p synthgut --target riscv64gc-unknown-none-elf

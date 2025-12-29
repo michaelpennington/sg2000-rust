@@ -2,6 +2,7 @@ use core::{
     cell::RefCell,
     fmt,
     future::poll_fn,
+    marker::PhantomData,
     task::{Poll, Waker},
 };
 
@@ -9,21 +10,26 @@ pub mod config;
 
 use critical_section::Mutex;
 use embedded_io::ErrorType;
-use embedded_io_async::Write;
+use embedded_io::Write as BlockingWrite;
+use embedded_io_async::Write as AsyncWrite;
 use sg2000_pac::{
     interrupt::ExternalInterrupt,
     uart0::{self, iir::IntStatus},
 };
 
 use crate::{
+    Async, Blocking, DriverMode,
     clock::ClockSource,
     irq::{enable_irq, set_handler},
+    peripherals::{Uart0, Uart1, Uart2, Uart3, Uart4},
+    private::Sealed,
 };
 
 pub use crate::uart::config::Config;
 
-pub struct Uart<'a> {
-    uart: &'a uart0::RegisterBlock,
+pub struct Uart<'a, Dm: DriverMode> {
+    uart: AnyUart<'a>,
+    phantom: PhantomData<Dm>,
     add_cr: bool,
 }
 
@@ -50,6 +56,97 @@ impl UartData {
     }
 }
 
+pub trait Instance: Sealed + Sized {
+    fn degrade<'a>(self) -> AnyUart<'a>
+    where
+        Self: 'a;
+}
+
+impl Instance for Uart0<'_> {
+    fn degrade<'a>(self) -> AnyUart<'a>
+    where
+        Self: 'a,
+    {
+        AnyUart {
+            inner: Uarts::Uart0(self),
+        }
+    }
+}
+impl Sealed for Uart0<'_> {}
+impl Instance for Uart1<'_> {
+    fn degrade<'a>(self) -> AnyUart<'a>
+    where
+        Self: 'a,
+    {
+        AnyUart {
+            inner: Uarts::Uart1(self),
+        }
+    }
+}
+impl Sealed for Uart1<'_> {}
+impl Instance for Uart2<'_> {
+    fn degrade<'a>(self) -> AnyUart<'a>
+    where
+        Self: 'a,
+    {
+        AnyUart {
+            inner: Uarts::Uart2(self),
+        }
+    }
+}
+impl Sealed for Uart2<'_> {}
+impl Instance for Uart3<'_> {
+    fn degrade<'a>(self) -> AnyUart<'a>
+    where
+        Self: 'a,
+    {
+        AnyUart {
+            inner: Uarts::Uart3(self),
+        }
+    }
+}
+impl Sealed for Uart3<'_> {}
+impl Instance for Uart4<'_> {
+    fn degrade<'a>(self) -> AnyUart<'a>
+    where
+        Self: 'a,
+    {
+        AnyUart {
+            inner: Uarts::Uart4(self),
+        }
+    }
+}
+impl Sealed for Uart4<'_> {}
+
+// #[derive()]
+pub struct AnyUart<'a> {
+    inner: Uarts<'a>,
+}
+
+// impl core::ops::
+
+enum Uarts<'a> {
+    Uart0(Uart0<'a>),
+    Uart1(Uart1<'a>),
+    Uart2(Uart2<'a>),
+    Uart3(Uart3<'a>),
+    Uart4(Uart4<'a>),
+}
+
+impl<'a> core::ops::Deref for AnyUart<'a> {
+    type Target = uart0::RegisterBlock;
+
+    fn deref(&self) -> &Self::Target {
+        match &self.inner {
+            Uarts::Uart0(uart0) => uart0.inner.deref(),
+            Uarts::Uart1(uart1) => uart1.inner.deref(),
+            Uarts::Uart2(uart2) => uart2.inner.deref(),
+            Uarts::Uart3(uart3) => uart3.inner.deref(),
+            Uarts::Uart4(uart4) => uart4.inner.deref(),
+        }
+    }
+}
+
 #[derive(Debug)]
 pub struct UartError;
 
@@ -67,17 +164,27 @@ impl embedded_io_async::Error for UartError {
     }
 }
 
-impl<'a> ErrorType for Uart<'a> {
+impl<'a, Dm: DriverMode> ErrorType for Uart<'a, Dm> {
     type Error = UartError;
 }
 
-impl<'a> Uart<'a> {
-    pub fn new(uart: &'a uart0::RegisterBlock, add_cr: bool) -> Self {
-        Uart { uart, add_cr }
-    }
+impl<'a, Dm: DriverMode> Uart<'a, Dm> {
+    pub fn read_divisor(&self) -> u16 {
+        self.uart.lcr().modify(|_, w| w.div_latch().set_bit());
 
-    pub fn init(&self, config: Config) -> Result<(), UartError> {
-        self.uart.ier().write(|w| unsafe { w.bits(0x00) });
+        let low = self.uart.dll().read().bits();
+        let high = self.uart.dlh().read().bits();
+
+        self.uart.lcr().modify(|_, w| w.div_latch().clear_bit());
+
+        (high as u16) << 8 | (low as u16)
+    }
+}
+
+impl<'a> Uart<'a, Blocking> {
+    pub fn new<I: Instance + 'a>(uart: I, config: Config) -> Result<Self, UartError> {
+        let uart = uart.degrade();
+        uart.ier().write(|w| unsafe { w.bits(0x00) });
 
         if !config.validate() {
             return Err(UartError);
@@ -88,16 +195,12 @@ impl<'a> Uart<'a> {
         let divisor_low = (divisor & 0xFF) as u8;
         let divisor_high = ((divisor >> 8) & 0xFF) as u8;
 
-        self.uart.lcr().modify(|_, w| w.div_latch().set_bit());
+        uart.lcr().modify(|_, w| w.div_latch().set_bit());
 
-        self.uart
-            .dll()
-            .write(|w| unsafe { w.dll().bits(divisor_low) });
-        self.uart
-            .dlh()
-            .write(|w| unsafe { w.dlh().bits(divisor_high) });
+        uart.dll().write(|w| unsafe { w.dll().bits(divisor_low) });
+        uart.dlh().write(|w| unsafe { w.dlh().bits(divisor_high) });
 
-        self.uart.lcr().write(|mut w| {
+        uart.lcr().write(|mut w| {
             w = w.div_latch().clear_bit();
             w = match config.data_len() {
                 config::DataLen::Five => w.data_len().five(),
@@ -124,7 +227,7 @@ impl<'a> Uart<'a> {
             }
         });
 
-        self.uart.fcr().write(|w| {
+        uart.fcr().write(|w| {
             w.fifo_en()
                 .set_bit()
                 .rxfifo_rst()
@@ -137,33 +240,50 @@ impl<'a> Uart<'a> {
 
         // self.uart.ier().write(|w| w.tx_empty().set_bit());
 
-        let plic = unsafe { sg2000_pac::Plic::steal() };
-        set_handler(ExternalInterrupt::UART1, uart1_handler);
-        enable_irq(&plic, ExternalInterrupt::UART1);
-
-        Ok(())
+        Ok(Self {
+            uart,
+            phantom: PhantomData,
+            add_cr: config.add_cr(),
+        })
     }
 
-    fn putc_blocking(&self, value: u8) {
-        while !self.uart.lsr().read().tx_empty().bit() {}
-        unsafe { self.uart.rbr_thr().write(|w| w.rbr_thr().bits(value)) };
-    }
-
-    pub fn write_str_blocking(&self, s: &str) {
+    pub fn write_str(&mut self, s: &str) {
         if self.add_cr {
-            for b in s.bytes() {
-                if b == b'\n' {
-                    self.putc_blocking(b'\r');
-                }
-                self.putc_blocking(b);
+            let mut s = s;
+            while let Some(next_newline) = s.find('\n') {
+                let _ = self.write_all(&s.as_bytes()[..next_newline]);
+                let _ = self.write_all(b"\r\n");
+                s = &s[next_newline + 1..];
             }
+            let _ = self.write_all(s.as_bytes());
         } else {
-            for b in s.bytes() {
-                self.putc_blocking(b);
-            }
+            let _ = self.write_all(s.as_bytes());
         }
     }
 
+    pub fn write_fmt(&mut self, args: core::fmt::Arguments<'_>) {
+        use core::fmt::Write;
+
+        let mut buf = heapless::String::<128>::new();
+
+        let _ = buf.write_fmt(args);
+
+        self.write_str(&buf);
+    }
+
+    pub fn into_async(self) -> Uart<'a, Async> {
+        let plic = unsafe { sg2000_pac::Plic::steal() };
+        set_handler(ExternalInterrupt::UART1, uart1_handler);
+        enable_irq(&plic, ExternalInterrupt::UART1);
+        Uart {
+            uart: self.uart,
+            phantom: PhantomData,
+            add_cr: self.add_cr,
+        }
+    }
+}
+
+impl<'a> Uart<'a, Async> {
     pub async fn write_str(&mut self, s: &str) {
         if self.add_cr {
             let mut s = s;
@@ -192,17 +312,6 @@ impl<'a> Uart<'a> {
         while !self.uart.usr().read().tx_fifo_empty().bit_is_set() {}
     }
 
-    pub fn read_divisor(&self) -> u16 {
-        self.uart.lcr().modify(|_, w| w.div_latch().set_bit());
-
-        let low = self.uart.dll().read().bits();
-        let high = self.uart.dlh().read().bits();
-
-        self.uart.lcr().modify(|_, w| w.div_latch().clear_bit());
-
-        (high as u16) << 8 | (low as u16)
-    }
-
     pub fn write_fmt(
         &mut self,
         args: core::fmt::Arguments<'_>,
@@ -219,9 +328,40 @@ impl<'a> Uart<'a> {
     }
 }
 
-impl<'a> Write for Uart<'a> {
+impl<'a> BlockingWrite for Uart<'a, Blocking> {
+    fn write(&mut self, buf: &[u8]) -> Result<usize, Self::Error> {
+        let uart = &self.uart;
+        let mut count = 0;
+        if self.add_cr {
+            for &b in buf {
+                if b == b'\n' {
+                    while !uart.usr().read().tx_fifo_not_full().bit_is_set() {}
+                    uart.rbr_thr().write(|w| unsafe { w.rbr_thr().bits(b'\r') });
+                }
+                while !uart.usr().read().tx_fifo_not_full().bit_is_set() {}
+                uart.rbr_thr().write(|w| unsafe { w.rbr_thr().bits(b) });
+                count += 1;
+            }
+        } else {
+            for &b in buf {
+                while !uart.usr().read().tx_fifo_not_full().bit_is_set() {}
+                uart.rbr_thr().write(|w| unsafe { w.rbr_thr().bits(b) });
+                count += 1;
+            }
+        }
+
+        Ok(count)
+    }
+
+    fn flush(&mut self) -> Result<(), Self::Error> {
+        while !self.uart.usr().read().tx_fifo_empty().bit_is_set() {}
+        Ok(())
+    }
+}
+
+impl<'a> AsyncWrite for Uart<'a, Async> {
     async fn write(&mut self, buf: &[u8]) -> Result<usize, Self::Error> {
-        let uart = self.uart;
+        let uart = &self.uart;
         poll_fn(|cx| {
             critical_section::with(|cs| {
                 let mut uart_data = UART_DATA.borrow_ref_mut(cs);
@@ -252,7 +392,7 @@ impl<'a> Write for Uart<'a> {
     }
 
     async fn flush(&mut self) -> Result<(), Self::Error> {
-        let uart = self.uart;
+        let uart = &self.uart;
 
         poll_fn(|cx| {
             critical_section::with(|cs| {

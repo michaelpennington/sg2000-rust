@@ -9,7 +9,7 @@ macro_rules! impl_peripherals {
         pub struct Peripherals {
             $(
                 #[doc = concat!("Wrapper for `", stringify!($type), "`")]
-                pub $field: $type,
+                pub $field: $type<'static>,
             )*
         }
 
@@ -28,36 +28,47 @@ macro_rules! impl_peripherals {
 
             #[doc = "Steal all the peripherals."]
             #[inline]
+            /// # Safety
+            ///
+            /// por que
             pub unsafe fn steal() -> Self {
-                let p = unsafe { pac::Peripherals::steal() };
                 Self {
-                    $($field: $type(p.$field)),*
+                    $($field: unsafe { $type::steal() }),*
                 }
             }
         }
 
         $(
             #[doc = concat!("Wrapper for `pac::", stringify!($type), "`")]
-            pub struct $type(pub pac::$type);
+            pub struct $type<'a> {
+                pub inner: pac::$type,
+                _phantom: core::marker::PhantomData<&'a mut ()>,
+            }
 
-            impl $type {
+            impl $type<'_> {
                 #[doc = "Steal this peripheral."]
                 #[inline]
+                /// # Safety
+                ///
+                /// por que
                 pub unsafe fn steal() -> Self {
-                    Self(unsafe { pac::$type::steal() })
+                    Self {
+                        inner: unsafe { pac::$type::steal() },
+                        _phantom: core::marker::PhantomData,
+                    }
                 }
             }
 
-            impl core::ops::Deref for $type {
+            impl core::ops::Deref for $type<'_> {
                 type Target = pac::$type;
                 fn deref(&self) -> &Self::Target {
-                    &self.0
+                    &self.inner
                 }
             }
 
-            impl core::ops::DerefMut for $type {
+            impl core::ops::DerefMut for $type<'_> {
                 fn deref_mut(&mut self) -> &mut Self::Target {
-                    &mut self.0
+                    &mut self.inner
                 }
             }
         )*

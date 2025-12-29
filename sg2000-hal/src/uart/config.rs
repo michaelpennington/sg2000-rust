@@ -8,6 +8,7 @@ pub struct Config {
     data_len: DataLen,
     stop_bits: StopBits,
     parity: ParityMode,
+    add_cr: bool,
 }
 
 impl Config {
@@ -29,6 +30,10 @@ impl Config {
 
     pub fn parity(&self) -> ParityMode {
         self.parity
+    }
+
+    pub fn add_cr(&self) -> bool {
+        self.add_cr
     }
 
     pub fn with_clock(mut self, clock: SourceClock) -> Self {
@@ -56,6 +61,11 @@ impl Config {
         self
     }
 
+    pub fn with_add_cr(mut self, add_cr: bool) -> Self {
+        self.add_cr = add_cr;
+        self
+    }
+
     pub(crate) fn validate(&self) -> bool {
         self.stop_bits == StopBits::One
             || self.stop_bits == StopBits::OnePFive && self.data_len == DataLen::Five
@@ -71,6 +81,7 @@ impl Default for Config {
             data_len: Default::default(),
             stop_bits: Default::default(),
             parity: Default::default(),
+            add_cr: false,
         }
     }
 }

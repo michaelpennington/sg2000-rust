@@ -1,11 +1,13 @@
 #![no_std]
 
+use core::marker::PhantomData;
+
 pub use sg2000_pac as pac;
 pub mod clock;
 pub mod irq;
+pub mod peripherals;
 pub mod resource_table;
 pub mod uart;
-pub mod peripherals;
 
 #[cfg(feature = "embassy")]
 pub mod timer;
@@ -16,6 +18,20 @@ impl Default for Config {
     fn default() -> Self {
         Self
     }
+}
+
+pub struct Blocking;
+impl private::Sealed for Blocking {}
+impl DriverMode for Blocking {}
+
+pub struct Async(PhantomData<*const ()>);
+impl private::Sealed for Async {}
+impl DriverMode for Async {}
+
+pub trait DriverMode: private::Sealed {}
+
+pub(crate) mod private {
+    pub trait Sealed {}
 }
 
 pub fn init(_config: Config) -> peripherals::Peripherals {

@@ -66,12 +66,48 @@ impl Config {
         self
     }
 
-    pub(crate) fn validate(&self) -> bool {
-        self.stop_bits == StopBits::One
-            || self.stop_bits == StopBits::OnePFive && self.data_len == DataLen::Five
-            || self.stop_bits == StopBits::Two && self.data_len != DataLen::Five
+    pub(crate) fn validate(&self) -> Result<(), ConfigError> {
+        if self.stop_bits == StopBits::OnePFive && self.data_len != DataLen::Five {
+            Err(ConfigError::StopBits1p5)
+        } else if self.stop_bits == StopBits::Two && self.data_len == DataLen::Five {
+            Err(ConfigError::StopBits2)
+        } else {
+            Ok(())
+        }
     }
 }
+
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
+pub enum ConfigError {
+    StopBits1p5,
+    StopBits2,
+}
+
+impl embedded_io::Error for ConfigError {
+    fn kind(&self) -> embedded_io::ErrorKind {
+        match self {
+            ConfigError::StopBits2 => embedded_io::ErrorKind::Unsupported,
+            ConfigError::StopBits1p5 => embedded_io::ErrorKind::Unsupported,
+        }
+    }
+}
+
+impl core::fmt::Display for ConfigError {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self {
+            ConfigError::StopBits1p5 => write!(
+                f,
+                "Uart Config Error: StopBits::OnePFive is only applicable if data_len = 5."
+            ),
+            ConfigError::StopBits2 => write!(
+                f,
+                "Uart Config Error: StopBits::Two is only applicable if data_len != 5."
+            ),
+        }
+    }
+}
+
+impl core::error::Error for ConfigError {}
 
 impl Default for Config {
     fn default() -> Self {

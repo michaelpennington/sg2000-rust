@@ -23,6 +23,7 @@ use crate::{
     irq::{enable_irq, set_handler},
     peripherals::{Uart0, Uart1, Uart2, Uart3, Uart4},
     private::Sealed,
+    uart::config::ConfigError,
 };
 
 pub use crate::uart::config::Config;
@@ -148,19 +149,45 @@ impl<'a> core::ops::Deref for AnyUart<'a> {
 }
 
 #[derive(Debug)]
-pub struct UartError;
+pub enum UartError {
+    Config(ConfigError),
+    BufferOverrun,
+    Framing,
+    Parity,
+    RxFifoOverrun,
+    Other,
+}
 
 impl core::fmt::Display for UartError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        writeln!(f, "Uart error! Weed eater")
+        match self {
+            Self::Config(config_error) => write!(f, "{config_error}"),
+            Self::BufferOverrun => write!(f, "UART software buffer overrun"),
+            Self::Framing => write!(f, "Uart framing error"),
+            Self::Parity => write!(f, "UART parity error"),
+            Self::RxFifoOverrun => write!(f, "UART hardware RX FIFO overrun"),
+            Self::Other => write!(f, "Other UART error"),
+        }
     }
 }
 
 impl core::error::Error for UartError {}
 
-impl embedded_io_async::Error for UartError {
+impl embedded_io::Error for UartError {
     fn kind(&self) -> embedded_io::ErrorKind {
-        embedded_io_async::ErrorKind::Other
+        match self {
+            Self::Config(config_error) => config_error.kind(),
+            Self::Parity | Self::Framing => embedded_io::ErrorKind::InvalidData,
+            Self::RxFifoOverrun | Self::Other | Self::BufferOverrun => {
+                embedded_io::ErrorKind::Other
+            }
+        }
+    }
+}
+
+impl From<ConfigError> for UartError {
+    fn from(value: ConfigError) -> Self {
+        Self::Config(value)
     }
 }
 
@@ -186,9 +213,7 @@ impl<'a> Uart<'a, Blocking> {
         let uart = uart.degrade();
         uart.ier().write(|w| unsafe { w.bits(0x00) });
 
-        if !config.validate() {
-            return Err(UartError);
-        }
+        config.validate()?;
 
         let divisor = (config.clock().hz().as_hz() as u32 + 8 * config.baud_rate())
             / (16 * config.baud_rate());

@@ -1,11 +1,12 @@
 use core::{
     fmt::Write,
+    slice,
     sync::atomic::{AtomicUsize, Ordering},
 };
 
 use log::{Log, SetLoggerError};
 
-use crate::resource_table::{TRACE_BUFFER, TRACE_BUFFER_SIZE};
+use crate::resource_table::{TRACE_BUFFER_DA, TRACE_BUFFER_SIZE};
 
 static WRITE_INDEX: AtomicUsize = AtomicUsize::new(0);
 
@@ -35,7 +36,7 @@ impl Log for SharedLogger {
 struct TraceWriter;
 
 impl TraceWriter {
-    fn new() -> Self {
+    const fn new() -> Self {
         Self
     }
 }
@@ -44,12 +45,14 @@ impl Write for TraceWriter {
     fn write_str(&mut self, s: &str) -> core::fmt::Result {
         let mut id = WRITE_INDEX.load(Ordering::Relaxed);
 
+        let trace_buffer =
+            unsafe { slice::from_raw_parts_mut(TRACE_BUFFER_DA as *mut u8, TRACE_BUFFER_SIZE) };
         let mut it = s
             .bytes()
             .zip((0..TRACE_BUFFER_SIZE).cycle().skip(id))
             .peekable();
         while let Some((byte, idx)) = it.next() {
-            unsafe { TRACE_BUFFER[idx] = byte };
+            trace_buffer[idx] = byte;
             if it.peek().is_none() {
                 id = idx;
             }

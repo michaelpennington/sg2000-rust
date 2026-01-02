@@ -71,6 +71,7 @@ async fn main(spawner: Spawner) -> ! {
     loop {
         unsafe { gpio0.dr().modify(|r, w| w.bits(r.bits() ^ LED_MASK)) };
         Timer::after_secs(1).await;
+        log::info!("Hello from the little core!");
     }
 }
 

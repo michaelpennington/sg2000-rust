@@ -36,6 +36,7 @@ impl<const N: usize> ResourceTableHeader<N> {
 }
 
 pub const TRACE_BUFFER_SIZE: usize = 0x1000;
+pub const TRACE_BUFFER_DA: u32 = 0x9ffff000;
 
 #[repr(C)]
 pub struct ResourceTable {
@@ -55,10 +56,6 @@ const fn name(s: &str) -> [u8; 32] {
     bytes
 }
 
-#[unsafe(link_section = ".trace_buffer")]
-#[unsafe(no_mangle)]
-pub static mut TRACE_BUFFER: [u8; TRACE_BUFFER_SIZE] = [0; TRACE_BUFFER_SIZE];
-
 #[unsafe(link_section = ".resource_table")]
 #[unsafe(no_mangle)]
 #[used]
@@ -66,7 +63,7 @@ pub static RESOURCE_TABLE: ResourceTable = ResourceTable {
     header: ResourceTableHeader::new([size_of::<ResourceTableHeader<1>>() as u32]),
     trace: FwRscTrace {
         type_: FwResourceType::RscTrace as u32,
-        da: 0,
+        da: TRACE_BUFFER_DA,
         len: TRACE_BUFFER_SIZE as u32,
         reserved: 0,
         name: name("trace0\0"),

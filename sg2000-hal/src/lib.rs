@@ -5,6 +5,7 @@ use core::marker::PhantomData;
 pub use sg2000_pac as pac;
 pub mod clock;
 pub mod irq;
+pub mod logger;
 pub mod peripherals;
 pub mod resource_table;
 pub mod uart;
@@ -48,6 +49,7 @@ pub fn init(_config: Config) -> peripherals::Peripherals {
         .plic
         .plic_prio(0)
         .write(|w| unsafe { w.bits(0) });
+    logger::init().unwrap();
 
     peripherals
 }

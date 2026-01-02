@@ -65,6 +65,7 @@ async fn main(spawner: Spawner) -> ! {
     writeln!(uart1p, "{BANNER}").await;
 
     uart1p.flush();
+    log::info!("Hello from the little core!");
 
     spawner.spawn(print_hellos(uart1p)).unwrap();
     loop {

@@ -47,9 +47,15 @@ impl Write for TraceWriter {
 
         let trace_buffer =
             unsafe { slice::from_raw_parts_mut(TRACE_BUFFER_DA as *mut u8, TRACE_BUFFER_SIZE) };
-        for byte in s.bytes() {
-            trace_buffer[id] = byte;
-            id = (id + 1) * (254 - id).min(1);
+        let mut it = s
+            .bytes()
+            .zip((0..TRACE_BUFFER_SIZE).cycle().skip(id + 1))
+            .peekable();
+        while let Some((byte, idx)) = it.next() {
+            trace_buffer[idx] = byte;
+            if it.peek().is_none() {
+                id = idx;
+            }
         }
 
         WRITE_INDEX.store(id, Ordering::Relaxed);

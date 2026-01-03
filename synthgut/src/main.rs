@@ -9,14 +9,19 @@ use riscv::asm::nop;
 use sg2000_hal::{
     Async, Config,
     irq::{enable_irq, set_handler},
+    mailbox::Sg2000Mailbox,
     pac::interrupt::ExternalInterrupt,
     peripherals,
     uart::{self, Uart},
+    virtio::VirtQueue,
 };
 
 const LED_MASK: u32 = 1 << 29;
 const INPUT_MASK: u32 = 1 << 15;
 const BUILD_TIME: &str = include!(concat!(env!("OUT_DIR"), "/timestamp.rs"));
+
+const VIRTQ0_ADDR: u32 = 0x8f528000;
+const VIRTQ1_ADDR: u32 = 0x8f52c000;
 
 #[panic_handler]
 fn panic(info: &PanicInfo) -> ! {
@@ -41,6 +46,11 @@ async fn main(spawner: Spawner) -> ! {
     let gpio1 = peripherals.gpio1;
     let plic = peripherals.plic;
     let uart1 = peripherals.uart1;
+
+    let mut rx_queue = unsafe { VirtQueue::new(VIRTQ0_ADDR, 16, 4096) };
+    let mut tx_queue = unsafe { VirtQueue::new(VIRTQ1_ADDR, 16, 4096) };
+
+    let mut mbox = Sg2000Mailbox::new(peripherals.mailboxes);
 
     unsafe {
         gpio0.ddr().modify(|r, w| w.bits(r.bits() | LED_MASK));
@@ -68,6 +78,33 @@ async fn main(spawner: Spawner) -> ! {
 
     spawner.spawn(print_hellos(uart1p)).unwrap();
     loop {
+        if let Some((idx, _ptr, len)) = rx_queue.get_available_buf() {
+            // TODO: Read data from 'ptr' (len bytes)
+            // Example: Echo it back or parse command
+
+            // Return buffer to Used ring
+            rx_queue.add_used_buf(idx, len);
+            mbox.kick(); // Notify Linux we consumed it
+        }
+
+        // 2. Check TX (Send "Hello" to Linux)
+        // We can only send if Linux gave us an empty buffer!
+        if let Some((idx, ptr, buf_cap)) = tx_queue.get_available_buf() {
+            let msg = "Hello from Rust!\n";
+            let msg_len = msg.len() as u32;
+
+            if msg_len <= buf_cap {
+                unsafe {
+                    core::ptr::copy_nonoverlapping(msg.as_ptr(), ptr, msg.len());
+                }
+                tx_queue.add_used_buf(idx, msg_len);
+                mbox.kick(); // Notify Linux we sent data
+            } else {
+                // Buffer too small, return empty (or handle partial)
+                tx_queue.add_used_buf(idx, 0);
+                mbox.kick();
+            }
+        }
         unsafe { gpio0.dr().modify(|r, w| w.bits(r.bits() ^ LED_MASK)) };
         Timer::after_secs(1).await;
     }

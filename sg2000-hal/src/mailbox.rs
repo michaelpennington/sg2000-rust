@@ -43,11 +43,11 @@ impl<'a> Sg2000Mailbox<'a> {
     ///
     /// This asserts the interrupt for the TX channel. The remote processor (Linux)
     /// must have its cpu_mbox_en and int_mask configured to listen to this channel.
-    pub fn kick(&mut self) {
+    pub fn kick(&mut self, channel: u8) {
         // Write to mbox_set to trigger the interrupt
         // The hardware will route this to the CPU that has this channel enabled.
         unsafe {
-            self.regs.mbox_set().write(|w| w.bits(1 << TX_BUF_CHANNEL));
+            self.regs.mbox_set().write(|w| w.bits(1 << channel));
         }
     }
 

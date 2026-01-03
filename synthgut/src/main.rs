@@ -22,8 +22,6 @@ const BUILD_TIME: &str = include!(concat!(env!("OUT_DIR"), "/timestamp.rs"));
 
 const VIRTQ0_ADDR: u32 = 0x8f528000;
 const VIRTQ1_ADDR: u32 = 0x8f52c000;
-const RX_NOTIFY_ID: u8 = 1; // Corresponds to Vring 0 (RX) in resource table
-const TX_NOTIFY_ID: u8 = 0; // Corresponds to Vring 1 (TX) in resource table
 
 #[panic_handler]
 fn panic(info: &PanicInfo) -> ! {
@@ -89,7 +87,7 @@ async fn main(spawner: Spawner) -> ! {
 
             // Return buffer to Used ring
             from_linux_queue.add_used_buf(idx, len);
-            mbox.kick(RX_NOTIFY_ID); // Notify Linux we consumed it
+            mbox.kick(); // Notify Linux we consumed it
         }
 
         // 2. Check TX (Send "Hello" to Linux)
@@ -105,11 +103,11 @@ async fn main(spawner: Spawner) -> ! {
                     core::ptr::copy_nonoverlapping(buf.as_ptr(), ptr, buf.len());
                 }
                 to_linux_queue.add_used_buf(idx, msg_len);
-                mbox.kick(TX_NOTIFY_ID); // Notify Linux we sent data
+                mbox.kick(); // Notify Linux we sent data
             } else {
                 // Buffer too small, return empty (or handle partial)
                 to_linux_queue.add_used_buf(idx, 0);
-                mbox.kick(TX_NOTIFY_ID);
+                mbox.kick();
             }
         }
         unsafe { gpio0.dr().modify(|r, w| w.bits(r.bits() ^ LED_MASK)) };

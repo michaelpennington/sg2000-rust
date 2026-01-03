@@ -3,9 +3,11 @@ use crate::peripherals::Mailboxes;
 /// Configuration based on the provided DTS
 const LOCAL_CPU_ID: usize = 1; // MCU is CPU 1
 // const REMOTE_CPU_ID: usize = 0; // Linux is CPU 0
-const TX_BUF_CHANNEL: u8 = 0; // Channel used to Kick Linux (vq_tx)
-const RX_DATA_CHANNEL: u8 = 1; // Channel Linux uses to Kick MCU (vq_rx)
 // const KICK_LINUX_CHANNEL: u8 = 2;
+// Channel 0: Host(Linux) -> Remote(Rust). We LISTEN to this.
+const INCOMING_IRQ_CHANNEL: u8 = 0;
+// Channel 1: Remote(Rust) -> Host(Linux). We KICK this.
+const OUTGOING_KICK_CHANNEL: u8 = 1;
 
 pub struct Sg2000Mailbox<'a> {
     regs: Mailboxes<'a>,
@@ -27,14 +29,14 @@ impl<'a> Sg2000Mailbox<'a> {
             .int_mask()
             .modify(|r, w| unsafe {
                 // Clear the bit corresponding to RX_CHANNEL to UNMASK it
-                w.bits(r.bits() & !((1 << RX_DATA_CHANNEL) | (1 << TX_BUF_CHANNEL)))
+                w.bits(r.bits() & !(1 << INCOMING_IRQ_CHANNEL))
             });
 
         // 2. Enable routing of the RX channel to the Local CPU.
         //    Set the bit in cpu_mbox_en.
-        mbox.regs.cpu_mbox_en(LOCAL_CPU_ID).modify(|r, w| unsafe {
-            w.bits(r.bits() | (1 << RX_DATA_CHANNEL) | (1 << TX_BUF_CHANNEL))
-        });
+        mbox.regs
+            .cpu_mbox_en(LOCAL_CPU_ID)
+            .modify(|r, w| unsafe { w.bits(r.bits() | (1 << INCOMING_IRQ_CHANNEL)) });
 
         mbox
     }
@@ -43,11 +45,13 @@ impl<'a> Sg2000Mailbox<'a> {
     ///
     /// This asserts the interrupt for the TX channel. The remote processor (Linux)
     /// must have its cpu_mbox_en and int_mask configured to listen to this channel.
-    pub fn kick(&mut self, channel: u8) {
+    pub fn kick(&mut self) {
         // Write to mbox_set to trigger the interrupt
         // The hardware will route this to the CPU that has this channel enabled.
         unsafe {
-            self.regs.mbox_set().write(|w| w.bits(1 << channel));
+            self.regs
+                .mbox_set()
+                .write(|w| w.bits(1 << OUTGOING_KICK_CHANNEL));
         }
     }
 
@@ -58,30 +62,18 @@ impl<'a> Sg2000Mailbox<'a> {
         // Read the Masked Interrupt Status for the Local CPU
         let status = self.regs.cpu_mbox_set(LOCAL_CPU_ID).int_int().read().bits();
 
-        let mut activity = false;
-        if (status & (1 << RX_DATA_CHANNEL)) != 0 {
+        if (status & (1 << INCOMING_IRQ_CHANNEL)) != 0 {
             // Clear the interrupt by writing 1 to int_clr
             unsafe {
                 self.regs
                     .cpu_mbox_set(LOCAL_CPU_ID)
                     .int_clr()
-                    .write(|w| w.bits(1 << RX_DATA_CHANNEL));
+                    .write(|w| w.bits(1 << INCOMING_IRQ_CHANNEL));
             }
-            activity = true;
+            return true;
         }
 
-        if (status & (1 << TX_BUF_CHANNEL)) != 0 {
-            // Clear the interrupt by writing 1 to int_clr
-            unsafe {
-                self.regs
-                    .cpu_mbox_set(LOCAL_CPU_ID)
-                    .int_clr()
-                    .write(|w| w.bits(1 << TX_BUF_CHANNEL));
-            }
-            activity = true;
-        }
-
-        activity
+        false
     }
 }
 

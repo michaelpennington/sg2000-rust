@@ -94,7 +94,7 @@ pub static RESOURCE_TABLE: ResourceTable = ResourceTable {
                 da: 0x8f52c000,
                 align: 4096,
                 num: 16,
-                notifyid: 0,
+                notifyid: 1,
                 pa: 0x8f52c000,
             },
         ],

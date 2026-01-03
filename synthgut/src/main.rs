@@ -47,8 +47,8 @@ async fn main(spawner: Spawner) -> ! {
     let plic = peripherals.plic;
     let uart1 = peripherals.uart1;
 
-    let mut rx_queue = unsafe { VirtQueue::new(VIRTQ0_ADDR, 16, 4096) };
-    let mut tx_queue = unsafe { VirtQueue::new(VIRTQ1_ADDR, 16, 4096) };
+    let mut to_linux_queue = unsafe { VirtQueue::new(VIRTQ0_ADDR, 16, 4096) };
+    let mut from_linux_queue = unsafe { VirtQueue::new(VIRTQ1_ADDR, 16, 4096) };
 
     let mut mbox = Sg2000Mailbox::new(peripherals.mailboxes);
 
@@ -77,19 +77,23 @@ async fn main(spawner: Spawner) -> ! {
     uart1p.flush();
 
     spawner.spawn(print_hellos(uart1p)).unwrap();
+    let mut counter: u32 = 0;
     loop {
-        if let Some((idx, _ptr, len)) = rx_queue.get_available_buf() {
+        if let Some((idx, _ptr, len)) = from_linux_queue.get_available_buf() {
             // TODO: Read data from 'ptr' (len bytes)
             // Example: Echo it back or parse command
 
             // Return buffer to Used ring
-            rx_queue.add_used_buf(idx, len);
+            from_linux_queue.add_used_buf(idx, len);
             mbox.kick(); // Notify Linux we consumed it
         }
 
         // 2. Check TX (Send "Hello" to Linux)
         // We can only send if Linux gave us an empty buffer!
-        if let Some((idx, ptr, buf_cap)) = tx_queue.get_available_buf() {
+        if let Some((idx, ptr, buf_cap)) = to_linux_queue.get_available_buf() {
+            use core::fmt::Write;
+            let mut buf = heapless::String::<64>::new();
+            let _ = writeln!(buf, "Hello Linux {}", counter);
             let msg = "Hello from Rust!\n";
             let msg_len = msg.len() as u32;
 
@@ -97,16 +101,17 @@ async fn main(spawner: Spawner) -> ! {
                 unsafe {
                     core::ptr::copy_nonoverlapping(msg.as_ptr(), ptr, msg.len());
                 }
-                tx_queue.add_used_buf(idx, msg_len);
+                to_linux_queue.add_used_buf(idx, msg_len);
                 mbox.kick(); // Notify Linux we sent data
             } else {
                 // Buffer too small, return empty (or handle partial)
-                tx_queue.add_used_buf(idx, 0);
+                to_linux_queue.add_used_buf(idx, 0);
                 mbox.kick();
             }
         }
         unsafe { gpio0.dr().modify(|r, w| w.bits(r.bits() ^ LED_MASK)) };
         Timer::after_secs(1).await;
+        counter = counter.wrapping_add(1);
     }
 }
 

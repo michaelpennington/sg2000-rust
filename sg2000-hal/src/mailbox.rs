@@ -58,6 +58,7 @@ impl<'a> Sg2000Mailbox<'a> {
         // Read the Masked Interrupt Status for the Local CPU
         let status = self.regs.cpu_mbox_set(LOCAL_CPU_ID).int_int().read().bits();
 
+        let mut activity = false;
         if (status & (1 << RX_DATA_CHANNEL)) != 0 {
             // Clear the interrupt by writing 1 to int_clr
             unsafe {
@@ -66,10 +67,21 @@ impl<'a> Sg2000Mailbox<'a> {
                     .int_clr()
                     .write(|w| w.bits(1 << RX_DATA_CHANNEL));
             }
-            return true;
+            activity = true;
         }
 
-        false
+        if (status & (1 << TX_BUF_CHANNEL)) != 0 {
+            // Clear the interrupt by writing 1 to int_clr
+            unsafe {
+                self.regs
+                    .cpu_mbox_set(LOCAL_CPU_ID)
+                    .int_clr()
+                    .write(|w| w.bits(1 << TX_BUF_CHANNEL));
+            }
+            activity = true;
+        }
+
+        activity
     }
 }
 

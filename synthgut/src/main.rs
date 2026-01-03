@@ -47,8 +47,8 @@ async fn main(spawner: Spawner) -> ! {
     let plic = peripherals.plic;
     let uart1 = peripherals.uart1;
 
-    let mut to_linux_queue = unsafe { VirtQueue::new(VIRTQ0_ADDR, 16, 4096) };
-    let mut from_linux_queue = unsafe { VirtQueue::new(VIRTQ1_ADDR, 16, 4096) };
+    let mut from_linux_queue = unsafe { VirtQueue::new(VIRTQ0_ADDR, 16, 4096) };
+    let mut to_linux_queue = unsafe { VirtQueue::new(VIRTQ1_ADDR, 16, 4096) };
 
     let mut mbox = Sg2000Mailbox::new(peripherals.mailboxes);
 
@@ -79,6 +79,8 @@ async fn main(spawner: Spawner) -> ! {
     spawner.spawn(print_hellos(uart1p)).unwrap();
     let mut counter: u32 = 0;
     loop {
+        mbox.check_and_clear_pending();
+
         if let Some((idx, _ptr, len)) = from_linux_queue.get_available_buf() {
             // TODO: Read data from 'ptr' (len bytes)
             // Example: Echo it back or parse command

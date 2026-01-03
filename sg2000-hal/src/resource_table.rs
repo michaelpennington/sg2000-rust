@@ -18,7 +18,7 @@ pub struct ResourceVring {
     pub pa: u32,
 }
 
-#[repr(C, packed)]
+#[repr(C)]
 pub struct ConsoleConfig {
     pub cols: u16,
     pub rows: u16,
@@ -26,8 +26,9 @@ pub struct ConsoleConfig {
     pub emerg_wr: u32,
 }
 
-#[repr(C, packed)]
+#[repr(C)]
 pub struct ResourceVdev {
+    pub type_: u32,
     pub id: u32,
     pub notifyid: u32,
     pub dfeatures: u32,
@@ -60,7 +61,7 @@ impl<const N: usize> ResourceTableHeader<N> {
     }
 }
 
-#[repr(C)]
+#[repr(C, align(16))]
 pub struct ResourceTable {
     pub header: ResourceTableHeader<1>,
     pub console_vdev: ResourceVdev,
@@ -72,6 +73,7 @@ pub struct ResourceTable {
 pub static RESOURCE_TABLE: ResourceTable = ResourceTable {
     header: ResourceTableHeader::new([size_of::<ResourceTableHeader<1>>() as u32]),
     console_vdev: ResourceVdev {
+        type_: FwResourceType::RscVdev as u32,
         id: VIRTIO_ID_CONSOLE,
         notifyid: 0,
         dfeatures: 0,

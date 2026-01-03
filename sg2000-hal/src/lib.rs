@@ -5,6 +5,7 @@ use core::marker::PhantomData;
 pub use sg2000_pac as pac;
 pub mod clock;
 pub mod irq;
+pub mod mailbox;
 pub mod peripherals;
 pub mod resource_table;
 pub mod uart;

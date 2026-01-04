@@ -8,6 +8,7 @@ use embassy_time::Timer;
 use riscv::asm::nop;
 use sg2000_hal::{
     Async, Config,
+    cache::dcache_flush,
     irq::{enable_irq, set_handler},
     mailbox::Sg2000Mailbox,
     pac::interrupt::ExternalInterrupt,
@@ -101,17 +102,20 @@ async fn main(spawner: Spawner) -> ! {
             if msg_len <= buf_cap {
                 unsafe {
                     core::ptr::copy_nonoverlapping(buf.as_ptr(), ptr, buf.len());
+                    dcache_flush(ptr as usize, buf.len());
                 }
                 to_linux_queue.add_used_buf(idx, msg_len);
+                unsafe { dcache_flush(VIRTQ1_ADDR as usize + 4096, 4096) };
                 mbox.kick(1); // Notify Linux we sent data
             } else {
                 // Buffer too small, return empty (or handle partial)
                 to_linux_queue.add_used_buf(idx, 0);
+                unsafe { dcache_flush(VIRTQ1_ADDR as usize + 4096, 4096) };
                 mbox.kick(1);
             }
         }
-        unsafe { gpio0.dr().modify(|r, w| w.bits(r.bits() ^ LED_MASK)) };
-        Timer::after_millis(10).await;
+        Timer::after_micros(10).await;
+        // unsafe { gpio0.dr().modify(|r, w| w.bits(r.bits() ^ LED_MASK)) };
         counter = counter.wrapping_add(1);
     }
 }

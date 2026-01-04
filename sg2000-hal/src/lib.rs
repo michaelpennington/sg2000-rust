@@ -3,6 +3,7 @@
 use core::marker::PhantomData;
 
 pub use sg2000_pac as pac;
+pub mod cache;
 pub mod clock;
 pub mod irq;
 pub mod mailbox;

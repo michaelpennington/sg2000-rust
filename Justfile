@@ -17,7 +17,7 @@ objdump: build
 
 # Build and transfer binary to device via SFTP
 flash: build
-    echo "put target/riscv64gc-unknown-none-elf/release/synthgut synthgut.elf" | sftp -b - debian@10.42.0.1
+    echo "put target/riscv64gc-unknown-none-elf/release/synthgut synthgut.elf" | sftp -b - root@192.168.58.2
 
 # Generate PAC from SVD
 generate:

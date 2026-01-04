@@ -87,7 +87,7 @@ async fn main(spawner: Spawner) -> ! {
 
             // Return buffer to Used ring
             from_linux_queue.add_used_buf(idx, len);
-            mbox.kick(); // Notify Linux we consumed it
+            mbox.kick(0); // Notify Linux we consumed it
         }
 
         // 2. Check TX (Send "Hello" to Linux)
@@ -103,11 +103,11 @@ async fn main(spawner: Spawner) -> ! {
                     core::ptr::copy_nonoverlapping(buf.as_ptr(), ptr, buf.len());
                 }
                 to_linux_queue.add_used_buf(idx, msg_len);
-                mbox.kick(); // Notify Linux we sent data
+                mbox.kick(1); // Notify Linux we sent data
             } else {
                 // Buffer too small, return empty (or handle partial)
                 to_linux_queue.add_used_buf(idx, 0);
-                mbox.kick();
+                mbox.kick(1);
             }
         }
         unsafe { gpio0.dr().modify(|r, w| w.bits(r.bits() ^ LED_MASK)) };

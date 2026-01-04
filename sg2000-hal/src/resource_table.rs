@@ -87,7 +87,7 @@ pub static RESOURCE_TABLE: ResourceTable = ResourceTable {
                 da: 0x8f528000,
                 align: 4096,
                 num: 16,
-                notifyid: 1,
+                notifyid: 0,
                 pa: 0x8f528000,
             },
             ResourceVring {

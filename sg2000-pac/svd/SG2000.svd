@@ -1234,7 +1234,7 @@
         <cluster>
           <dim>4</dim>
           <dimIncrement>0x10</dimIncrement>
-          <name>cpu_mbox_set[%s]</name>
+          <name>cpu_mbox_int[%s]</name>
           <description>Interrupts Registers</description>
           <addressOffset>0x10</addressOffset>
           <register>

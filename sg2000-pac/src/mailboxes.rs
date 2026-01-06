@@ -3,7 +3,7 @@
 pub struct RegisterBlock {
     cpu_mbox_en: (),
     _reserved1: [u8; 0x10],
-    cpu_mbox_set: (),
+    cpu_mbox_int: (),
     _reserved2: [u8; 0x50],
     mbox_set: MboxSet,
     _reserved3: [u8; 0x03],
@@ -31,7 +31,7 @@ impl RegisterBlock {
     }
     #[doc = "0x10..0x44 - Interrupts Registers"]
     #[inline(always)]
-    pub const fn cpu_mbox_set(&self, n: usize) -> &CpuMboxSet {
+    pub const fn cpu_mbox_int(&self, n: usize) -> &CpuMboxInt {
         #[allow(clippy::no_effect)]
         [(); 4][n];
         unsafe {
@@ -45,7 +45,7 @@ impl RegisterBlock {
     #[doc = "Iterator for array of:"]
     #[doc = "0x10..0x44 - Interrupts Registers"]
     #[inline(always)]
-    pub fn cpu_mbox_set_iter(&self) -> impl Iterator<Item = &CpuMboxSet> {
+    pub fn cpu_mbox_int_iter(&self) -> impl Iterator<Item = &CpuMboxInt> {
         (0..4).map(move |n| unsafe {
             &*core::ptr::from_ref(self)
                 .cast::<u8>()
@@ -118,10 +118,10 @@ pub type CpuMboxEn = crate::Reg<cpu_mbox_en::CpuMboxEnSpec>;
 #[doc = "Mailbox Enable Bits"]
 pub mod cpu_mbox_en;
 #[doc = "Interrupts Registers"]
-pub use self::cpu_mbox_set::CpuMboxSet;
+pub use self::cpu_mbox_int::CpuMboxInt;
 #[doc = r"Cluster"]
 #[doc = "Interrupts Registers"]
-pub mod cpu_mbox_set;
+pub mod cpu_mbox_int;
 #[doc = "mbox_set (rw) register accessor: mbox_set\n\nYou can [`read`](crate::Reg::read) this register and get [`mbox_set::R`]. You can [`reset`](crate::Reg::reset), [`write`](crate::Reg::write), [`write_with_zero`](crate::Reg::write_with_zero) this register using [`mbox_set::W`]. You can also [`modify`](crate::Reg::modify) this register. See [API](https://docs.rs/svd2rust/#read--modify--write-api).\n\nFor information about available fields see [`mod@mbox_set`] module"]
 #[doc(alias = "mbox_set")]
 pub type MboxSet = crate::Reg<mbox_set::MboxSetSpec>;

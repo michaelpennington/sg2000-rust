@@ -7,11 +7,12 @@ use embassy_executor::Spawner;
 use embassy_time::Timer;
 use riscv::asm::nop;
 use sg2000_hal::{
-    Async, Config,
+    Async,
+    Config,
     irq::{enable_irq, set_handler},
-    mailbox::{Channel, Cpu, Mailbox},
+    // mailbox::{Channel, Cpu, Mailbox},
     pac::interrupt::ExternalInterrupt,
-    peripherals::{self, Mailboxes},
+    peripherals::{self}, //, Mailboxes},
     uart::{self, Uart},
 };
 
@@ -35,14 +36,14 @@ fn panic(info: &PanicInfo) -> ! {
 const BANNER: &str = "##############################################################";
 
 #[embassy_executor::main]
-async fn main(_spawner: Spawner) -> ! {
+async fn main(spawner: Spawner) -> ! {
     let peripherals = sg2000_hal::init(Config);
 
     let gpio0 = peripherals.gpio0;
     let gpio1 = peripherals.gpio1;
     let plic = peripherals.plic;
     let uart1 = peripherals.uart1;
-    let mailbox = peripherals.mailboxes;
+    // let mailbox = peripherals.mailboxes;
 
     unsafe {
         gpio0.ddr().modify(|r, w| w.bits(r.bits() | LED_MASK));
@@ -56,8 +57,8 @@ async fn main(_spawner: Spawner) -> ! {
         enable_irq(&plic, ExternalInterrupt::GPIO1);
     }
 
-    let mut tx_mailbox = Mailbox::new(mailbox, Channel::Ch1, Cpu::C906_0);
-    let rx_mailbox = Mailbox::new(unsafe { Mailboxes::steal() }, Channel::Ch0, Cpu::C906_0);
+    // let mut tx_mailbox = Mailbox::new(mailbox, Channel::Ch1, Cpu::C906_0);
+    // let rx_mailbox = Mailbox::new(unsafe { Mailboxes::steal() }, Channel::Ch0, Cpu::C906_0);
 
     Timer::after_secs(1).await;
 
@@ -71,16 +72,16 @@ async fn main(_spawner: Spawner) -> ! {
 
     uart1p.flush();
 
-    // spawner.spawn(print_hellos(uart1p)).unwrap();
+    spawner.spawn(print_hellos(uart1p)).unwrap();
     loop {
-        if let Some(msg) = rx_mailbox.read_data() {
-            writeln!(uart1p, "Received message {msg:010x} in mailbox").await;
-        }
+        // if let Some(msg) = rx_mailbox.read_data() {
+        //     writeln!(uart1p, "Received message {msg:010x} in mailbox").await;
+        // }
         unsafe { gpio0.dr().modify(|r, w| w.bits(r.bits() ^ LED_MASK)) };
         Timer::after_secs(1).await;
-        if !tx_mailbox.send_data(1) {
-            panic!("Failed sending tx mailbox!~");
-        }
+        // if !tx_mailbox.send_data(1) {
+        //     panic!("Failed sending tx mailbox!~");
+        // }
     }
 }
 

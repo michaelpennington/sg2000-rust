@@ -95,7 +95,7 @@ async fn main(_spawner: Spawner) -> ! {
     let buffer = unsafe { tx_queue.get_buf_slice(desc_idx) };
 
     let src_addr = 0x400;
-    let payload = RpmsgNsMsg::new("rpmsg-client-sample", src_addr);
+    let payload = RpmsgNsMsg::new("rpmsg-tty", src_addr);
 
     let header = RpmsgHeader {
         src: src_addr,

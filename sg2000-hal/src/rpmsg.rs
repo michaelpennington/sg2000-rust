@@ -26,7 +26,7 @@ impl RpmsgNsMsg {
         Self {
             name: name_bytes,
             addr,
-            flags: 3,
+            flags: 0,
         }
     }
 }

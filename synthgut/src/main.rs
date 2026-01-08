@@ -70,9 +70,9 @@ async fn main(_spawner: Spawner) -> ! {
 
     // Uart::new takes &pac::Uart1. uart1 is &mut peripherals::Uart1, which derefs to pac::Uart1.
     let mut uart1p = Uart::new(uart1, uart::Config::default().with_add_cr(true)).unwrap();
-    let mut rx_queue =
-        unsafe { VirtQueue::from_resource_table_addr(0x8F528000, VRING_NUM as u16, VRING_ALIGN) };
     let mut tx_queue =
+        unsafe { VirtQueue::from_resource_table_addr(0x8F528000, VRING_NUM as u16, VRING_ALIGN) };
+    let mut rx_queue =
         unsafe { VirtQueue::from_resource_table_addr(0x8F52C000, VRING_NUM as u16, VRING_ALIGN) };
 
     writeln!(uart1p, "{BANNER}");
@@ -120,8 +120,8 @@ async fn main(_spawner: Spawner) -> ! {
     tx_queue.add_used_buf(desc_idx, total_len as u32);
 
     writeln!(uart1p, "Sent Name Service Announcement. Kicking Host...");
-    if !tx_mailbox.send_data(1) {
-        panic!("Failed to send `1` on tx_mailbox");
+    if !tx_mailbox.send_data(0) {
+        panic!("Failed to send `0` on tx_mailbox");
     }
 
     loop {
@@ -145,8 +145,8 @@ async fn main(_spawner: Spawner) -> ! {
 
             rx_queue.add_used_buf(desc_idx, 0);
 
-            if !tx_mailbox.send_data(0) {
-                panic!("Failed to send `0` on tx_mailbox");
+            if !tx_mailbox.send_data(1) {
+                panic!("Failed to send `1` on tx_mailbox");
             }
         }
 

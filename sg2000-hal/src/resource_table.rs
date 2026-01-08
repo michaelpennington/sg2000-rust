@@ -10,7 +10,7 @@ pub enum FwResourceType {
 pub const VIRTIO_ID_RPMSG: u32 = 7;
 
 pub const VIRTIO_RPMSG_F_NS: u32 = 0; // Name Service feature bit
-pub const VRING_NUM: u32 = 512; // Number of descriptors (must match host expectation or be negotiated)
+pub const VRING_NUM: u32 = 256; // Number of descriptors (must match host expectation or be negotiated)
 pub const VRING_ALIGN: u32 = 4096;
 
 #[repr(C)]
@@ -81,14 +81,14 @@ pub static RESOURCE_TABLE: ResourceTable = ResourceTable {
         reserved: [0; 2],
     },
     rpmsg_vring0: FwRscVdevVring {
-        da: 0,
+        da: 0x8F528000,
         align: VRING_ALIGN,
         num: VRING_NUM,
         notifyid: 0,
         reserved: 0,
     },
     rpmsg_vring1: FwRscVdevVring {
-        da: 0,
+        da: 0x8F52C000,
         align: VRING_ALIGN,
         num: VRING_NUM,
         notifyid: 1,

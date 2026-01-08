@@ -11,7 +11,7 @@ use sg2000_hal::{
     irq::{enable_irq, set_handler},
     mailbox::{Channel, Cpu, Mailbox},
     pac::interrupt::ExternalInterrupt,
-    peripherals::{self},
+    peripherals::{self, Mailboxes},
     resource_table::{RESOURCE_TABLE, VRING_ALIGN, VRING_NUM},
     rpmsg::{RPMSG_ADDR_NS, RpmsgHeader, RpmsgNsMsg},
     uart::{self, Uart},
@@ -64,7 +64,7 @@ async fn main(_spawner: Spawner) -> ! {
     }
 
     let mut tx_mailbox = Mailbox::new(mailbox, Channel::Ch1, Cpu::C906_0);
-    // let rx_mailbox = Mailbox::new(unsafe { Mailboxes::steal() }, Channel::Ch0, Cpu::C906_0);
+    let rx_mailbox = Mailbox::new(unsafe { Mailboxes::steal() }, Channel::Ch0, Cpu::C906_1);
 
     Timer::after_secs(1).await;
 
@@ -77,7 +77,10 @@ async fn main(_spawner: Spawner) -> ! {
 
     writeln!(uart1p, "{BANNER}");
     writeln!(uart1p, "# Synthgut 0.1.0, built {BUILD_TIME} #");
-    writeln!(uart1p, "# VirtIO Driver OK. Rings Initialized #");
+    writeln!(
+        uart1p,
+        "# VirtIO Driver OK. Rings Initialized                        #"
+    );
     writeln!(uart1p, "{BANNER}\n");
     writeln!(uart1p, "rx_queue = {rx_queue:?}");
     writeln!(uart1p, "tx_queue = {tx_queue:?}");
@@ -87,6 +90,7 @@ async fn main(_spawner: Spawner) -> ! {
         tx_desc_idx = tx_queue.get_avail_buf();
     }
     let desc_idx = tx_desc_idx.unwrap();
+    writeln!(uart1p, "Got tx_desc_idx {desc_idx}");
 
     let buffer = unsafe { tx_queue.get_buf_slice(desc_idx) };
 
@@ -105,17 +109,27 @@ async fn main(_spawner: Spawner) -> ! {
         let head_ptr = buffer.as_mut_ptr() as *mut RpmsgHeader;
         head_ptr.write(header);
 
+        writeln!(uart1p, "Wrote header {:?} into {:?}", header, head_ptr);
+
         let payload_ptr = buffer.as_mut_ptr().add(size_of::<RpmsgHeader>()) as *mut RpmsgNsMsg;
         payload_ptr.write(payload);
+        writeln!(uart1p, "Wrote payload {:?} into {:?}", payload_ptr, payload);
     }
 
     let total_len = size_of::<RpmsgHeader>() + size_of::<RpmsgNsMsg>();
     tx_queue.add_used_buf(desc_idx, total_len as u32);
 
     writeln!(uart1p, "Sent Name Service Announcement. Kicking Host...");
-    tx_mailbox.send_data(1);
+    if !tx_mailbox.send_data(1) {
+        panic!("Failed to send `1` on tx_mailbox");
+    }
 
     loop {
+        if rx_mailbox.is_pending()
+            && let Some(d) = rx_mailbox.read_data()
+        {
+            writeln!(uart1p, "You've got mail! {d:010X}");
+        }
         if let Some(desc_idx) = rx_queue.get_avail_buf() {
             let buf = unsafe { rx_queue.get_buf_slice(desc_idx) };
 
@@ -131,7 +145,9 @@ async fn main(_spawner: Spawner) -> ! {
 
             rx_queue.add_used_buf(desc_idx, 0);
 
-            tx_mailbox.send_data(0);
+            if !tx_mailbox.send_data(0) {
+                panic!("Failed to send `0` on tx_mailbox");
+            }
         }
 
         Timer::after_millis(2).await;

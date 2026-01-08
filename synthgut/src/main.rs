@@ -7,13 +7,13 @@ use embassy_executor::Spawner;
 use embassy_time::Timer;
 use riscv::asm::nop;
 use sg2000_hal::{
-    Async,
-    Config,
+    Async, Config,
     irq::{enable_irq, set_handler},
-    // mailbox::{Channel, Cpu, Mailbox},
     pac::interrupt::ExternalInterrupt,
-    peripherals::{self}, //, Mailboxes},
+    peripherals::{self},
+    resource_table::{RESOURCE_TABLE, VRING_ALIGN, VRING_NUM},
     uart::{self, Uart},
+    virtio::VirtQueue,
 };
 
 const LED_MASK: u32 = 1 << 29;
@@ -55,6 +55,10 @@ async fn main(spawner: Spawner) -> ! {
         set_handler(ExternalInterrupt::GPIO1, gpio1_handler);
         // enable_irq takes &pac::Plic. plic is peripherals::Plic, which derefs to pac::Plic.
         enable_irq(&plic, ExternalInterrupt::GPIO1);
+
+        while (core::ptr::read_volatile(&RESOURCE_TABLE.rpmsg_vdev.status) & 0x4) == 0 {
+            Timer::after_millis(10).await;
+        }
     }
 
     // let mut tx_mailbox = Mailbox::new(mailbox, Channel::Ch1, Cpu::C906_0);
@@ -66,9 +70,17 @@ async fn main(spawner: Spawner) -> ! {
     let mut uart1p = Uart::new(uart1, uart::Config::default().with_add_cr(true))
         .unwrap()
         .into_async();
+    let rx_queue =
+        unsafe { VirtQueue::from_resource_table_addr(0x8F528000, VRING_NUM as u16, VRING_ALIGN) };
+    let tx_queue =
+        unsafe { VirtQueue::from_resource_table_addr(0x8F52C000, VRING_NUM as u16, VRING_ALIGN) };
+
     writeln!(uart1p, "{BANNER}").await;
     writeln!(uart1p, "# Synthgut 0.1.0, built {BUILD_TIME} #").await;
-    writeln!(uart1p, "{BANNER}").await;
+    writeln!(uart1p, "# VirtIO Driver OK. Rings Initialized #").await;
+    writeln!(uart1p, "{BANNER}\n").await;
+    writeln!(uart1p, "rx_queue = {rx_queue:?}").await;
+    writeln!(uart1p, "tx_queue = {tx_queue:?}").await;
 
     uart1p.flush();
 

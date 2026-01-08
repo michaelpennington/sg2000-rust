@@ -7,11 +7,13 @@ use embassy_executor::Spawner;
 use embassy_time::Timer;
 use riscv::asm::nop;
 use sg2000_hal::{
-    Async, Config,
+    Config,
     irq::{enable_irq, set_handler},
+    mailbox::{Channel, Cpu, Mailbox},
     pac::interrupt::ExternalInterrupt,
     peripherals::{self},
     resource_table::{RESOURCE_TABLE, VRING_ALIGN, VRING_NUM},
+    rpmsg::{RPMSG_ADDR_NS, RpmsgHeader, RpmsgNsMsg},
     uart::{self, Uart},
     virtio::VirtQueue,
 };
@@ -36,14 +38,14 @@ fn panic(info: &PanicInfo) -> ! {
 const BANNER: &str = "##############################################################";
 
 #[embassy_executor::main]
-async fn main(spawner: Spawner) -> ! {
+async fn main(_spawner: Spawner) -> ! {
     let peripherals = sg2000_hal::init(Config);
 
     let gpio0 = peripherals.gpio0;
     let gpio1 = peripherals.gpio1;
     let plic = peripherals.plic;
     let uart1 = peripherals.uart1;
-    // let mailbox = peripherals.mailboxes;
+    let mailbox = peripherals.mailboxes;
 
     unsafe {
         gpio0.ddr().modify(|r, w| w.bits(r.bits() | LED_MASK));
@@ -61,49 +63,78 @@ async fn main(spawner: Spawner) -> ! {
         }
     }
 
-    // let mut tx_mailbox = Mailbox::new(mailbox, Channel::Ch1, Cpu::C906_0);
+    let mut tx_mailbox = Mailbox::new(mailbox, Channel::Ch1, Cpu::C906_0);
     // let rx_mailbox = Mailbox::new(unsafe { Mailboxes::steal() }, Channel::Ch0, Cpu::C906_0);
 
     Timer::after_secs(1).await;
 
     // Uart::new takes &pac::Uart1. uart1 is &mut peripherals::Uart1, which derefs to pac::Uart1.
-    let mut uart1p = Uart::new(uart1, uart::Config::default().with_add_cr(true))
-        .unwrap()
-        .into_async();
-    let rx_queue =
+    let mut uart1p = Uart::new(uart1, uart::Config::default().with_add_cr(true)).unwrap();
+    let mut rx_queue =
         unsafe { VirtQueue::from_resource_table_addr(0x8F528000, VRING_NUM as u16, VRING_ALIGN) };
-    let tx_queue =
+    let mut tx_queue =
         unsafe { VirtQueue::from_resource_table_addr(0x8F52C000, VRING_NUM as u16, VRING_ALIGN) };
 
-    writeln!(uart1p, "{BANNER}").await;
-    writeln!(uart1p, "# Synthgut 0.1.0, built {BUILD_TIME} #").await;
-    writeln!(uart1p, "# VirtIO Driver OK. Rings Initialized #").await;
-    writeln!(uart1p, "{BANNER}\n").await;
-    writeln!(uart1p, "rx_queue = {rx_queue:?}").await;
-    writeln!(uart1p, "tx_queue = {tx_queue:?}").await;
+    writeln!(uart1p, "{BANNER}");
+    writeln!(uart1p, "# Synthgut 0.1.0, built {BUILD_TIME} #");
+    writeln!(uart1p, "# VirtIO Driver OK. Rings Initialized #");
+    writeln!(uart1p, "{BANNER}\n");
+    writeln!(uart1p, "rx_queue = {rx_queue:?}");
+    writeln!(uart1p, "tx_queue = {tx_queue:?}");
 
-    uart1p.flush();
-
-    spawner.spawn(print_hellos(uart1p)).unwrap();
-    loop {
-        // if let Some(msg) = rx_mailbox.read_data() {
-        //     writeln!(uart1p, "Received message {msg:010x} in mailbox").await;
-        // }
-        unsafe { gpio0.dr().modify(|r, w| w.bits(r.bits() ^ LED_MASK)) };
-        Timer::after_secs(1).await;
-        // if !tx_mailbox.send_data(1) {
-        //     panic!("Failed sending tx mailbox!~");
-        // }
+    let mut tx_desc_idx = None;
+    while tx_desc_idx.is_none() {
+        tx_desc_idx = tx_queue.get_avail_buf();
     }
-}
+    let desc_idx = tx_desc_idx.unwrap();
 
-#[embassy_executor::task]
-async fn print_hellos(mut uart: Uart<'static, Async>) {
+    let buffer = unsafe { tx_queue.get_buf_slice(desc_idx) };
+
+    let src_addr = 0x400;
+    let payload = RpmsgNsMsg::new("rpmsg-client-sample", src_addr);
+
+    let header = RpmsgHeader {
+        src: src_addr,
+        dst: RPMSG_ADDR_NS,
+        reserved: 0,
+        len: size_of::<RpmsgNsMsg>() as u16,
+        flags: 0,
+    };
+
+    unsafe {
+        let head_ptr = buffer.as_mut_ptr() as *mut RpmsgHeader;
+        head_ptr.write(header);
+
+        let payload_ptr = buffer.as_mut_ptr().add(size_of::<RpmsgHeader>()) as *mut RpmsgNsMsg;
+        payload_ptr.write(payload);
+    }
+
+    let total_len = size_of::<RpmsgHeader>() + size_of::<RpmsgNsMsg>();
+    tx_queue.add_used_buf(desc_idx, total_len as u32);
+
+    writeln!(uart1p, "Sent Name Service Announcement. Kicking Host...");
+    tx_mailbox.send_data(1);
+
     loop {
-        for i in 0..10 {
-            writeln!(uart, "HELLO {i}").await;
-            Timer::after_secs(2).await;
+        if let Some(desc_idx) = rx_queue.get_avail_buf() {
+            let buf = unsafe { rx_queue.get_buf_slice(desc_idx) };
+
+            let header = unsafe { &*(buf.as_ptr() as *const RpmsgHeader) };
+            let payload_len = header.len as usize;
+
+            if buf.len() >= 16 + payload_len {
+                let msg_data = &buf[16..16 + payload_len];
+                if let Ok(s) = core::str::from_utf8(msg_data) {
+                    writeln!(uart1p, "RX: {}", s);
+                }
+            }
+
+            rx_queue.add_used_buf(desc_idx, 0);
+
+            tx_mailbox.send_data(0);
         }
+
+        Timer::after_millis(2).await;
     }
 }
 

@@ -1,3 +1,5 @@
+use core::sync::atomic::{Ordering, fence};
+
 use crate::resource_table::VRING_NUM;
 
 #[repr(C)]
@@ -38,7 +40,7 @@ pub struct VirtQueue {
     pub avail: *mut VRingAvail,
     pub used: *mut VRingUsed,
     pub num: u16,
-    pub last_used_idx: u16,
+    pub last_avail_idx: u16,
 }
 
 impl VirtQueue {
@@ -65,7 +67,46 @@ impl VirtQueue {
             avail,
             used,
             num,
-            last_used_idx: 0,
+            last_avail_idx: 0,
+        }
+    }
+
+    pub fn get_avail_buf(&mut self) -> Option<u16> {
+        let avail_idx = unsafe { (*self.avail).idx };
+        fence(Ordering::SeqCst);
+        if self.last_avail_idx != avail_idx {
+            let ring_idx = (self.last_avail_idx % self.num) as usize;
+            let desc_idx = unsafe { (*self.avail).ring[ring_idx] };
+            self.last_avail_idx = self.last_avail_idx.wrapping_add(1);
+            Some(desc_idx)
+        } else {
+            None
+        }
+    }
+
+    pub fn add_used_buf(&mut self, desc_idx: u16, len: u32) {
+        let used_idx = unsafe { (*self.used).idx };
+        let ring_idx = (used_idx % self.num) as usize;
+
+        unsafe {
+            (*self.used).ring[ring_idx] = VRingUsedElem {
+                id: desc_idx as u32,
+                len,
+            };
+        }
+        fence(Ordering::SeqCst);
+        unsafe {
+            (*self.used).idx = used_idx.wrapping_add(1);
+        }
+    }
+
+    /// # Safety
+    ///
+    /// desc_idx must be valid
+    pub unsafe fn get_buf_slice(&mut self, desc_idx: u16) -> &mut [u8] {
+        unsafe {
+            let desc = *self.desc.add(desc_idx as usize);
+            core::slice::from_raw_parts_mut(desc.addr as *mut u8, desc.len as usize)
         }
     }
 }

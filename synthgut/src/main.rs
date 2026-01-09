@@ -7,11 +7,12 @@ use embassy_executor::Spawner;
 use embassy_time::Timer;
 use riscv::asm::nop;
 use sg2000_hal::{
-    Async, Config,
+    Config,
     irq::{enable_irq, set_handler},
     mailbox::{Channel, Cpu, Mailbox},
     pac::interrupt::ExternalInterrupt,
     peripherals::{self, Mailboxes},
+    rpmsg::RpmsgDevice,
     uart::{self, Uart},
 };
 
@@ -56,41 +57,49 @@ async fn main(_spawner: Spawner) -> ! {
         enable_irq(&plic, ExternalInterrupt::GPIO1);
     }
 
-    let mut tx_mailbox = Mailbox::new(mailbox, Channel::Ch1, Cpu::C906_0);
-    let rx_mailbox = Mailbox::new(unsafe { Mailboxes::steal() }, Channel::Ch0, Cpu::C906_0);
-
     Timer::after_secs(1).await;
 
     // Uart::new takes &pac::Uart1. uart1 is &mut peripherals::Uart1, which derefs to pac::Uart1.
-    let mut uart1p = Uart::new(uart1, uart::Config::default().with_add_cr(true))
-        .unwrap()
-        .into_async();
-    writeln!(uart1p, "{BANNER}").await;
-    writeln!(uart1p, "# Synthgut 0.1.0, built {BUILD_TIME} #").await;
-    writeln!(uart1p, "{BANNER}").await;
+    let mut uart1p = Uart::new(uart1, uart::Config::default().with_add_cr(true)).unwrap();
 
-    uart1p.flush();
+    writeln!(uart1p, "{BANNER}");
+    writeln!(uart1p, "# Synthgut 0.1.0, built {BUILD_TIME} #");
+    writeln!(uart1p, "{BANNER}\n");
 
-    // spawner.spawn(print_hellos(uart1p)).unwrap();
-    loop {
-        if let Some(msg) = rx_mailbox.read_data() {
-            writeln!(uart1p, "Received message {msg:010x} in mailbox").await;
-        }
-        unsafe { gpio0.dr().modify(|r, w| w.bits(r.bits() ^ LED_MASK)) };
-        Timer::after_secs(1).await;
-        if !tx_mailbox.send_data(1) {
-            panic!("Failed sending tx mailbox!~");
-        }
+    let tx_mailbox = Mailbox::new(mailbox, Channel::Ch1, Cpu::C906_0);
+    let rx_mailbox = Mailbox::new(unsafe { Mailboxes::steal() }, Channel::Ch0, Cpu::C906_1);
+
+    let mut rpmsg = unsafe { RpmsgDevice::new(tx_mailbox, rx_mailbox) };
+    writeln!(uart1p, "Waiting for Linux Host (DRIVER_OK)...");
+
+    while !rpmsg.is_driver_ok() {
+        Timer::after_millis(10).await;
     }
-}
 
-#[embassy_executor::task]
-async fn print_hellos(mut uart: Uart<'static, Async>) {
+    let msg = "Hello from the remote core!";
+
+    writeln!(uart1p, "Host online. Announcing service...");
+    let src_addr = 0x400;
+    match rpmsg.announce("rpmsg-tty", src_addr) {
+        Ok(_) => writeln!(uart1p, "service 'rpmsg-tty' announced at {src_addr:#010X}"),
+        Err(e) => writeln!(uart1p, "Announcement failed: {e}"),
+    }
+    Timer::after_millis(500).await;
+
+    match rpmsg.send(src_addr, src_addr, msg.as_bytes()) {
+        Ok(_) => writeln!(uart1p, "sent message {msg} to main core"),
+        Err(e) => writeln!(uart1p, "send message failed: {e}"),
+    }
+
     loop {
-        for i in 0..10 {
-            writeln!(uart, "HELLO {i}").await;
-            Timer::after_secs(2).await;
-        }
+        rpmsg.poll(|src, dst, data| {
+            if let Ok(s) = core::str::from_utf8(data) {
+                writeln!(uart1p, "RX [{}->{}]: {}", src, dst, s);
+            } else {
+                writeln!(uart1p, "RX [{}->{}]: {} bytes binary", src, dst, data.len());
+            }
+        });
+        Timer::after_millis(2).await;
     }
 }
 

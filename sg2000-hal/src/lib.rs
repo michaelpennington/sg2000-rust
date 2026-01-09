@@ -8,7 +8,9 @@ pub mod irq;
 pub mod mailbox;
 pub mod peripherals;
 pub mod resource_table;
+pub mod rpmsg;
 pub mod uart;
+pub mod virtio;
 
 #[cfg(feature = "embassy")]
 pub mod timer;

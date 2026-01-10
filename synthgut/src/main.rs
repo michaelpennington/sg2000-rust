@@ -2,9 +2,12 @@
 #![no_std]
 #![no_main]
 
+mod logger;
+
 use core::{fmt::Write, panic::PanicInfo};
 use embassy_executor::Spawner;
 use embassy_time::Timer;
+use log::info;
 use riscv::asm::nop;
 use sg2000_hal::{
     Config,
@@ -36,7 +39,7 @@ fn panic(info: &PanicInfo) -> ! {
 const BANNER: &str = "##############################################################";
 
 #[embassy_executor::main]
-async fn main(_spawner: Spawner) -> ! {
+async fn main(spawner: Spawner) -> ! {
     let peripherals = sg2000_hal::init(Config);
 
     let gpio0 = peripherals.gpio0;
@@ -59,6 +62,9 @@ async fn main(_spawner: Spawner) -> ! {
 
     Timer::after_secs(1).await;
 
+    logger::init().unwrap();
+    info!("Logger initialized!");
+
     // Uart::new takes &pac::Uart1. uart1 is &mut peripherals::Uart1, which derefs to pac::Uart1.
     let mut uart1p = Uart::new(uart1, uart::Config::default().with_add_cr(true)).unwrap();
 
@@ -76,8 +82,6 @@ async fn main(_spawner: Spawner) -> ! {
         Timer::after_millis(10).await;
     }
 
-    let msg = "Hello from the remote core!";
-
     writeln!(uart1p, "Host online. Announcing service...");
     let src_addr = 0x400;
     match rpmsg.announce("rpmsg-tty", src_addr) {
@@ -86,11 +90,9 @@ async fn main(_spawner: Spawner) -> ! {
     }
     Timer::after_millis(500).await;
 
-    match rpmsg.send(src_addr, src_addr, msg.as_bytes()) {
-        Ok(_) => writeln!(uart1p, "sent message {msg} to main core"),
-        Err(e) => writeln!(uart1p, "send message failed: {e}"),
-    }
+    info!("Hello from the remote core!");
 
+    spawner.spawn(print_hellos()).unwrap();
     loop {
         rpmsg.poll(|src, dst, data| {
             if let Ok(s) = core::str::from_utf8(data) {
@@ -99,7 +101,26 @@ async fn main(_spawner: Spawner) -> ! {
                 writeln!(uart1p, "RX [{}->{}]: {} bytes binary", src, dst, data.len());
             }
         });
+        while let Some(msg) = logger::pop_log() {
+            // Note: send() might fail if the ring is full, but for logs we
+            // might just have to drop them or retry briefly.
+            if rpmsg.send(src_addr, src_addr, msg.as_bytes()).is_err() {
+                // If we can't send via RPMsg, maybe fallback to UART or drop
+                // We shouldn't log::error! here as it would loop recursively.
+                break;
+            }
+        }
         Timer::after_millis(2).await;
+    }
+}
+
+#[embassy_executor::task]
+async fn print_hellos() {
+    loop {
+        for i in 0..10 {
+            info!("Hello {i}!");
+            Timer::after_secs(1).await;
+        }
     }
 }
 

@@ -7,14 +7,11 @@ use embassy_executor::Spawner;
 use embassy_time::Timer;
 use log::info;
 use sg2000_hal::{
-    Config, logger,
-    mailbox::{Channel, Cpu, Mailbox},
-    peripherals::{self, Mailboxes},
-    rpmsg::RpmsgDevice,
+    Config,
+    logger::RpmsgLogger,
+    peripherals,
     uart::{self, Uart},
 };
-
-const BUILD_TIME: &str = include!(concat!(env!("OUT_DIR"), "/timestamp.rs"));
 
 #[panic_handler]
 fn panic(info: &PanicInfo) -> ! {
@@ -28,58 +25,16 @@ fn panic(info: &PanicInfo) -> ! {
     loop {}
 }
 
-// Uart1 here refers to the wrapper type
-const BANNER: &str = "##############################################################";
-
 #[embassy_executor::main]
 async fn main(spawner: Spawner) -> ! {
-    let peripherals = sg2000_hal::init(Config);
+    let _peripherals = sg2000_hal::init(Config);
 
-    let uart1 = peripherals.uart1;
-    let mailbox = peripherals.mailboxes;
-
-    Timer::after_secs(1).await;
-
-    logger::init().unwrap();
+    let mut logger = RpmsgLogger::init();
     info!("Logger initialized!");
-
-    // Uart::new takes &pac::Uart1. uart1 is &mut peripherals::Uart1, which derefs to pac::Uart1.
-    let mut uart1p = Uart::new(uart1, uart::Config::default().with_add_cr(true)).unwrap();
-
-    writeln!(uart1p, "{BANNER}");
-    writeln!(uart1p, "# Synthgut 0.1.0, built {BUILD_TIME} #");
-    writeln!(uart1p, "{BANNER}\n");
-
-    let tx_mailbox = Mailbox::new(mailbox, Channel::Ch1, Cpu::C906_0);
-    let rx_mailbox = Mailbox::new(unsafe { Mailboxes::steal() }, Channel::Ch0, Cpu::C906_1);
-
-    let mut rpmsg = unsafe { RpmsgDevice::new(tx_mailbox, rx_mailbox) };
-    writeln!(uart1p, "Waiting for Linux Host (DRIVER_OK)...");
-
-    while !rpmsg.is_driver_ok() {
-        Timer::after_millis(10).await;
-    }
-
-    writeln!(uart1p, "Host online. Announcing service...");
-    let src_addr = 0x400;
-    match rpmsg.announce("rpmsg-tty", src_addr) {
-        Ok(_) => writeln!(uart1p, "service 'rpmsg-tty' announced at {src_addr:#010X}"),
-        Err(e) => writeln!(uart1p, "Announcement failed: {e}"),
-    }
-    Timer::after_millis(500).await;
-
-    info!("Hello from the remote core!");
 
     spawner.spawn(print_hellos()).unwrap();
     loop {
-        rpmsg.poll(|src, dst, data| {
-            if let Ok(s) = core::str::from_utf8(data) {
-                writeln!(uart1p, "RX [{}->{}]: {}", src, dst, s);
-            } else {
-                writeln!(uart1p, "RX [{}->{}]: {} bytes binary", src, dst, data.len());
-            }
-        });
-        logger::drain_to_rpmsg(&mut rpmsg, src_addr, src_addr);
+        logger.flush_log();
         Timer::after_millis(2).await;
     }
 }

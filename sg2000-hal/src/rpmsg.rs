@@ -1,7 +1,8 @@
 use core::ptr::{read_volatile, write_volatile};
 
 use crate::{
-    mailbox::Mailbox,
+    mailbox::{Channel, Cpu, Mailbox},
+    peripherals::Mailboxes,
     resource_table::{RESOURCE_TABLE, VRING_ALIGN, VRING_NUM},
     virtio::VirtQueue,
 };
@@ -57,7 +58,9 @@ impl<'a> RpmsgDevice<'a> {
     /// It assumes:
     /// * VRing 0 @ 0x8F528000 (TX for Device / RX for Host)
     /// * VRing 1 @ 0x8F52C000 (RX for Device / TX for Host)
-    pub unsafe fn new(tx_mailbox: Mailbox<'a>, rx_mailbox: Mailbox<'a>) -> Self {
+    pub unsafe fn new() -> Self {
+        let tx_mailbox = Mailbox::new(unsafe { Mailboxes::steal() }, Channel::Ch1, Cpu::C906_0);
+        let rx_mailbox = Mailbox::new(unsafe { Mailboxes::steal() }, Channel::Ch0, Cpu::C906_1);
         let tx_queue = unsafe {
             VirtQueue::from_resource_table_addr(0x8F528000, VRING_NUM as u16, VRING_ALIGN)
         };

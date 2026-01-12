@@ -1,6 +1,6 @@
 use core::fmt::Write;
 use heapless::{String, mpmc::Queue};
-use log::{Level, LevelFilter, Metadata, Record, SetLoggerError};
+use log::{Level, LevelFilter, Metadata, Record, info};
 
 #[cfg(feature = "log-rpmsg")]
 use crate::rpmsg::RpmsgDevice;
@@ -33,31 +33,50 @@ impl log::Log for GlobalLogger {
 
 static LOGGER: GlobalLogger = GlobalLogger;
 
-pub fn init() -> Result<(), SetLoggerError> {
-    log::set_logger(&LOGGER).map(|()| log::set_max_level(LevelFilter::Info))
-}
-
 /// Pop a log line from the queue.
 /// Useful if you need custom handling of the log string.
 pub fn pop_log() -> Option<String<LOG_LINE_LENGTH>> {
     LOG_QUEUE.dequeue()
 }
 
-/// Helper to drain the log queue directly into an RpmsgDevice.
-/// Call this in your main loop.
-#[cfg(feature = "log-rpmsg")]
-pub fn drain_to_rpmsg(rpmsg: &mut RpmsgDevice, src: u32, dst: u32) {
-    // We limit how many we process per tick to ensure we don't starve other tasks
-    // if logs are being generated faster than we can send them.
-    for _ in 0..LOG_QUEUE_DEPTH {
-        if let Some(msg) = pop_log() {
-            if rpmsg.send(src, dst, msg.as_bytes()).is_err() {
-                // If TX ring is full, we stop draining for now and try again later.
-                // Note: The message we just popped is dropped here.
+pub struct RpmsgLogger<'a> {
+    dev: RpmsgDevice<'a>,
+}
+
+impl<'a> RpmsgLogger<'a> {
+    pub fn init() -> Self {
+        let mut dev = unsafe { RpmsgDevice::new() };
+        while !dev.is_driver_ok() {}
+        let src_addr = 0x400;
+        log::set_logger(&LOGGER)
+            .map(|()| log::set_max_level(LevelFilter::Info))
+            .unwrap();
+        match dev.announce("rpmsg-tty", src_addr) {
+            Ok(_) => info!("service 'rpmsg-tty' announced at {src_addr:#010X}"),
+            Err(e) => info!("Announcement failed: {e}"),
+        }
+
+        info!("Hello from the remote core!");
+
+        Self { dev }
+    }
+
+    pub fn flush_log(&mut self) {
+        for _ in 0..LOG_QUEUE_DEPTH {
+            if let Some(msg) = pop_log() {
+                if self.dev.send(0x400, 0x400, msg.as_bytes()).is_err() {
+                    break;
+                }
+            } else {
                 break;
             }
-        } else {
-            break;
         }
+        self.dev.poll(|src, dst, data| {
+            if let Ok(s) = core::str::from_utf8(data) {
+                info!("RX [{}->{}]: {}", src, dst, s);
+            } else {
+                info!("RX [{}->{}]: {} bytes binary", src, dst, data.len());
+            }
+        });
     }
 }

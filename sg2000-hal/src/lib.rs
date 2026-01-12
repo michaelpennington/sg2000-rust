@@ -12,6 +12,9 @@ pub mod rpmsg;
 pub mod uart;
 pub mod virtio;
 
+#[cfg(feature = "log-rpmsg")]
+pub mod logger;
+
 #[cfg(feature = "embassy")]
 pub mod timer;
 

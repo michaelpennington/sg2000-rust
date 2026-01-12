@@ -13,7 +13,9 @@ heapless = "0.9.2"
 riscv = { version = "0.15.0", features = ["critical-section-single-hart"] }
 sg2000-pac = { version = "0.1.0", path = "../sg2000-pac", features = ["critical-section", "rt"] }
 xuantie-riscv = { git = "https://github.com/rustsbi/xuantie", version = "0.0.0" }
+log = { version = "0.4", optional = true }
 
 [features]
 default = []
 embassy = ["dep:embassy-time-driver", "dep:embassy-time-queue-utils"]
+log-rpmsg = ["dep:log"]

@@ -9,9 +9,9 @@ use core::{
 pub mod config;
 
 use critical_section::Mutex;
-use embedded_io::ErrorType;
-use embedded_io::Write as BlockingWrite;
-use embedded_io_async::Write as AsyncWrite;
+use embedded_io::{ErrorType, ReadReady};
+use embedded_io::{Read as BlockingRead, Write as BlockingWrite};
+use embedded_io_async::{Read as AsyncRead, Write as AsyncWrite};
 use sg2000_pac::{
     interrupt::ExternalInterrupt,
     uart0::{self, iir::IntStatus},
@@ -36,17 +36,37 @@ pub struct Uart<'a, Dm: DriverMode> {
 
 const BUFFER_SIZE: usize = 128;
 
-static UART_DATA: Mutex<RefCell<UartData>> = Mutex::new(RefCell::new(UartData::default()));
+static UART_TX_DATA: Mutex<RefCell<UartTxData>> = Mutex::new(RefCell::new(UartTxData::default()));
+static UART_RX_DATA: Mutex<RefCell<UartRxData>> = Mutex::new(RefCell::new(UartRxData::default()));
 
 #[derive(Debug)]
-struct UartData {
+struct UartTxData {
     rd_ptr: usize,
     wt_ptr: usize,
     buffer: [u8; BUFFER_SIZE],
     waker: Option<Waker>,
 }
 
-impl UartData {
+#[derive(Debug)]
+struct UartRxData {
+    rd_ptr: usize,
+    wt_ptr: usize,
+    buffer: [u8; BUFFER_SIZE],
+    waker: Option<Waker>,
+}
+
+impl UartTxData {
+    const fn default() -> Self {
+        Self {
+            rd_ptr: 0,
+            wt_ptr: 0,
+            buffer: [0; BUFFER_SIZE],
+            waker: None,
+        }
+    }
+}
+
+impl UartRxData {
     const fn default() -> Self {
         Self {
             rd_ptr: 0,
@@ -225,15 +245,15 @@ impl<'a> Uart<'a, Blocking> {
         uart.dll().write(|w| unsafe { w.dll().bits(divisor_low) });
         uart.dlh().write(|w| unsafe { w.dlh().bits(divisor_high) });
 
-        uart.lcr().write(|mut w| {
-            w = w.div_latch().clear_bit();
-            w = match config.data_len() {
+        uart.lcr().modify(|_, w| {
+            w.div_latch().clear_bit();
+            match config.data_len() {
                 config::DataLen::Five => w.data_len().five(),
                 config::DataLen::Six => w.data_len().six(),
                 config::DataLen::Seven => w.data_len().seven(),
                 config::DataLen::Eight => w.data_len().eight(),
             };
-            w = match config.stop_bits() {
+            match config.stop_bits() {
                 config::StopBits::One => w.stop_bits().clear_bit(),
                 config::StopBits::OnePFive | config::StopBits::Two => w.stop_bits().set_bit(),
             };
@@ -261,9 +281,9 @@ impl<'a> Uart<'a, Blocking> {
                 .set_bit()
                 .tx_empty_trig()
                 .quarter()
+                .rx_trig()
+                .char1()
         });
-
-        // self.uart.ier().write(|w| w.tx_empty().set_bit());
 
         Ok(Self {
             uart,
@@ -300,11 +320,16 @@ impl<'a> Uart<'a, Blocking> {
         let plic = unsafe { sg2000_pac::Plic::steal() };
         set_handler(ExternalInterrupt::UART1, uart1_handler);
         enable_irq(&plic, ExternalInterrupt::UART1);
+        self.uart.ier().write(|w| w.rx_data().set_bit());
         Uart {
             uart: self.uart,
             phantom: PhantomData,
             add_cr: self.add_cr,
         }
+    }
+
+    pub fn read(&mut self, buf: &mut [u8]) -> Result<usize, UartError> {
+        BlockingRead::read(self, buf)
     }
 }
 
@@ -326,7 +351,7 @@ impl<'a> Uart<'a, Async> {
     pub fn flush(&self) {
         loop {
             let empty = critical_section::with(|cs| {
-                let data = UART_DATA.borrow_ref(cs);
+                let data = UART_TX_DATA.borrow_ref(cs);
                 data.rd_ptr == data.wt_ptr
             });
             if empty {
@@ -384,31 +409,82 @@ impl<'a> BlockingWrite for Uart<'a, Blocking> {
     }
 }
 
+impl<'a> BlockingRead for Uart<'a, Blocking> {
+    fn read(&mut self, buf: &mut [u8]) -> Result<usize, Self::Error> {
+        let uart = &self.uart;
+        while !uart.usr().read().rx_fifo_not_empty().bit_is_set() {}
+        for (i, byte) in buf.iter_mut().enumerate() {
+            *byte = (uart.rbr_thr().read().bits() & 0xFF) as u8;
+            if uart.usr().read().rx_fifo_not_empty().bit_is_clear() {
+                return Ok(i + 1);
+            }
+        }
+        Ok(buf.len())
+    }
+}
+
+impl<'a> ReadReady for Uart<'a, Blocking> {
+    fn read_ready(&mut self) -> Result<bool, Self::Error> {
+        Ok(self.uart.usr().read().rx_fifo_not_empty().bit_is_set())
+    }
+}
+
+impl<'a> AsyncRead for Uart<'a, Async> {
+    async fn read(&mut self, buf: &mut [u8]) -> Result<usize, Self::Error> {
+        let uart = &self.uart;
+        poll_fn(|cx| {
+            critical_section::with(|cs| {
+                let mut uart_rx_data = UART_RX_DATA.borrow_ref_mut(cs);
+                if uart_rx_data.wt_ptr == uart_rx_data.rd_ptr {
+                    uart_rx_data.waker = Some(cx.waker().clone());
+                    uart.ier().modify(|_, w| w.rx_data().set_bit());
+                    return Poll::Pending;
+                }
+                let mut count = 0;
+                let mut it = buf
+                    .iter_mut()
+                    .zip(uart_rx_data.rd_ptr..=uart_rx_data.wt_ptr)
+                    .enumerate()
+                    .peekable();
+                while let Some((i, (byte, idx))) = it.next() {
+                    if it.peek().is_none() {
+                        count = i;
+                        uart_rx_data.rd_ptr = idx;
+                    }
+                    *byte = uart_rx_data.buffer[idx % BUFFER_SIZE];
+                }
+                Poll::Ready(Ok(count))
+            })
+        })
+        .await
+    }
+}
+
 impl<'a> AsyncWrite for Uart<'a, Async> {
     async fn write(&mut self, buf: &[u8]) -> Result<usize, Self::Error> {
         let uart = &self.uart;
         poll_fn(|cx| {
             critical_section::with(|cs| {
-                let mut uart_data = UART_DATA.borrow_ref_mut(cs);
+                let mut uart_tx_data = UART_TX_DATA.borrow_ref_mut(cs);
 
-                if uart_data.wt_ptr - uart_data.rd_ptr >= BUFFER_SIZE {
-                    uart_data.waker = Some(cx.waker().clone());
-                    uart.ier().write(|w| w.tx_empty().set_bit());
+                if uart_tx_data.wt_ptr - uart_tx_data.rd_ptr >= BUFFER_SIZE {
+                    uart_tx_data.waker = Some(cx.waker().clone());
+                    uart.ier().modify(|_, w| w.tx_empty().set_bit());
                     return Poll::Pending;
                 }
                 let mut count = 0;
                 for &byte in buf {
-                    if uart_data.wt_ptr - uart_data.rd_ptr >= BUFFER_SIZE {
-                        uart_data.waker = Some(cx.waker().clone());
+                    if uart_tx_data.wt_ptr - uart_tx_data.rd_ptr >= BUFFER_SIZE {
+                        uart_tx_data.waker = Some(cx.waker().clone());
                         break;
                     }
-                    let wt_idx = uart_data.wt_ptr;
-                    uart_data.buffer[wt_idx % BUFFER_SIZE] = byte;
-                    uart_data.wt_ptr = wt_idx + 1;
+                    let wt_idx = uart_tx_data.wt_ptr;
+                    uart_tx_data.buffer[wt_idx % BUFFER_SIZE] = byte;
+                    uart_tx_data.wt_ptr = wt_idx + 1;
                     count += 1;
                 }
 
-                uart.ier().write(|w| w.tx_empty().set_bit());
+                uart.ier().modify(|_, w| w.tx_empty().set_bit());
 
                 Poll::Ready(Ok(count))
             })
@@ -421,7 +497,7 @@ impl<'a> AsyncWrite for Uart<'a, Async> {
 
         poll_fn(|cx| {
             critical_section::with(|cs| {
-                let mut uart_data = UART_DATA.borrow_ref_mut(cs);
+                let mut uart_data = UART_TX_DATA.borrow_ref_mut(cs);
 
                 if uart_data.rd_ptr != uart_data.wt_ptr {
                     uart_data.waker = Some(cx.waker().clone());
@@ -446,27 +522,50 @@ fn uart1_handler() {
     let uart = unsafe { sg2000_pac::Uart1::steal() };
     let iir = uart.iir().read();
 
-    if iir.int_id().variant() == Some(IntStatus::Thrempty) {
-        critical_section::with(|cs| {
-            let mut uart_data = UART_DATA.borrow_ref_mut(cs);
-            // TODO: read number of bytes in FIFO from TFL rather than checking each time
-            while uart_data.rd_ptr < uart_data.wt_ptr
-                && uart.usr().read().tx_fifo_not_full().bit_is_set()
+    match iir.int_id().variant() {
+        Some(IntStatus::Thrempty) => {
+            critical_section::with(|cs| {
+                let mut uart_tx_data = UART_TX_DATA.borrow_ref_mut(cs);
+                // TODO: read number of bytes in FIFO from TFL rather than checking each time
+                while uart_tx_data.rd_ptr < uart_tx_data.wt_ptr
+                    && uart.usr().read().tx_fifo_not_full().bit_is_set()
+                {
+                    uart.rbr_thr().write(|w| unsafe {
+                        w.rbr_thr()
+                            .bits(uart_tx_data.buffer[uart_tx_data.rd_ptr % BUFFER_SIZE])
+                    });
+                    uart_tx_data.rd_ptr += 1;
+                }
+
+                if uart_tx_data.rd_ptr == uart_tx_data.wt_ptr {
+                    uart.ier().modify(|_, w| w.tx_empty().clear_bit());
+                }
+
+                if let Some(waker) = uart_tx_data.waker.take() {
+                    waker.wake();
+                }
+            });
+        }
+        Some(IntStatus::DataAvailable) => critical_section::with(|cs| {
+            let mut uart_rx_data = UART_RX_DATA.borrow_ref_mut(cs);
+            let mut wt_ptr = uart_rx_data.wt_ptr;
+            while wt_ptr < uart_rx_data.rd_ptr + BUFFER_SIZE
+                && uart.usr().read().rx_fifo_not_empty().bit_is_set()
             {
-                uart.rbr_thr().write(|w| unsafe {
-                    w.rbr_thr()
-                        .bits(uart_data.buffer[uart_data.rd_ptr % BUFFER_SIZE])
-                });
-                uart_data.rd_ptr += 1;
+                uart_rx_data.buffer[wt_ptr % BUFFER_SIZE] =
+                    (uart.rbr_thr().read().bits() & 0xFF) as u8;
+                wt_ptr += 1;
+            }
+            uart_rx_data.wt_ptr = wt_ptr;
+
+            if uart.usr().read().rx_fifo_not_empty().bit_is_clear() {
+                uart.ier().modify(|_, w| w.rx_data().clear_bit());
             }
 
-            if uart_data.rd_ptr == uart_data.wt_ptr {
-                uart.ier().reset();
-            }
-
-            if let Some(waker) = uart_data.waker.take() {
+            if let Some(waker) = uart_rx_data.waker.take() {
                 waker.wake();
             }
-        });
+        }),
+        _ => {}
     }
 }

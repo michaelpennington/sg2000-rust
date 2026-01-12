@@ -5,6 +5,7 @@
 use core::{fmt::Write, panic::PanicInfo};
 use embassy_executor::Spawner;
 use embassy_time::Timer;
+use embedded_io_async::Read;
 use log::info;
 use sg2000_hal::{
     Config,
@@ -26,15 +27,29 @@ fn panic(info: &PanicInfo) -> ! {
 }
 
 #[embassy_executor::main]
-async fn main(spawner: Spawner) -> ! {
-    let _peripherals = sg2000_hal::init(Config);
+async fn main(_spawner: Spawner) -> ! {
+    let peripherals = sg2000_hal::init(Config);
 
     let mut logger = RpmsgLogger::init();
     info!("Logger initialized!");
 
-    spawner.spawn(print_hellos()).unwrap();
+    let mut uart = Uart::new(peripherals.uart1, uart::Config::default())
+        .unwrap()
+        .into_async();
+    let mut buf = [0u8; 128];
+
+    // spawner.spawn(print_hellos()).unwrap();
     loop {
         logger.flush_log();
+        if let Ok(num_bytes) = uart.read(&mut buf).await {
+            if let Ok(s) = core::str::from_utf8(&buf[..num_bytes]) {
+                info!("{s}");
+            } else {
+                for byte in &buf[..num_bytes] {
+                    info!("{:#040X} ", byte);
+                }
+            }
+        }
         Timer::after_millis(2).await;
     }
 }

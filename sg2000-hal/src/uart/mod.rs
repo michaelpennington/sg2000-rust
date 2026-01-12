@@ -416,10 +416,10 @@ impl<'a> BlockingRead for Uart<'a, Blocking> {
         for (i, byte) in buf.iter_mut().enumerate() {
             *byte = (uart.rbr_thr().read().bits() & 0xFF) as u8;
             if uart.usr().read().rx_fifo_not_empty().bit_is_clear() {
-                return Ok(i);
+                return Ok(i + 1);
             }
         }
-        Ok(0)
+        Ok(buf.len())
     }
 }
 

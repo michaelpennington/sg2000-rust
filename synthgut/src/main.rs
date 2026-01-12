@@ -26,15 +26,27 @@ fn panic(info: &PanicInfo) -> ! {
 }
 
 #[embassy_executor::main]
-async fn main(spawner: Spawner) -> ! {
-    let _peripherals = sg2000_hal::init(Config);
+async fn main(_spawner: Spawner) -> ! {
+    let peripherals = sg2000_hal::init(Config);
 
     let mut logger = RpmsgLogger::init();
     info!("Logger initialized!");
 
-    spawner.spawn(print_hellos()).unwrap();
+    let mut uart = Uart::new(peripherals.uart1, uart::Config::default()).unwrap();
+    let mut buf = heapless::Vec::<u8, 128>::new();
+
+    // spawner.spawn(print_hellos()).unwrap();
     loop {
         logger.flush_log();
+        if let Ok(num_bytes) = uart.read(&mut buf) {
+            if let Ok(s) = core::str::from_utf8(&buf[..num_bytes]) {
+                info!("{s}");
+            } else {
+                for byte in &buf[..num_bytes] {
+                    info!("{:#040X} ", byte);
+                }
+            }
+        }
         Timer::after_millis(2).await;
     }
 }

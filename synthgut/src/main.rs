@@ -2,25 +2,18 @@
 #![no_std]
 #![no_main]
 
-mod logger;
-
 use core::{fmt::Write, panic::PanicInfo};
 use embassy_executor::Spawner;
 use embassy_time::Timer;
 use log::info;
-use riscv::asm::nop;
 use sg2000_hal::{
-    Config,
-    irq::{enable_irq, set_handler},
+    Config, logger,
     mailbox::{Channel, Cpu, Mailbox},
-    pac::interrupt::ExternalInterrupt,
     peripherals::{self, Mailboxes},
     rpmsg::RpmsgDevice,
     uart::{self, Uart},
 };
 
-const LED_MASK: u32 = 1 << 29;
-const INPUT_MASK: u32 = 1 << 15;
 const BUILD_TIME: &str = include!(concat!(env!("OUT_DIR"), "/timestamp.rs"));
 
 #[panic_handler]
@@ -42,23 +35,8 @@ const BANNER: &str = "##########################################################
 async fn main(spawner: Spawner) -> ! {
     let peripherals = sg2000_hal::init(Config);
 
-    let gpio0 = peripherals.gpio0;
-    let gpio1 = peripherals.gpio1;
-    let plic = peripherals.plic;
     let uart1 = peripherals.uart1;
     let mailbox = peripherals.mailboxes;
-
-    unsafe {
-        gpio0.ddr().modify(|r, w| w.bits(r.bits() | LED_MASK));
-
-        gpio1
-            .int_polarity()
-            .modify(|r, w| w.bits(r.bits() | INPUT_MASK));
-        gpio1.inten().modify(|r, w| w.bits(r.bits() | INPUT_MASK));
-        set_handler(ExternalInterrupt::GPIO1, gpio1_handler);
-        // enable_irq takes &pac::Plic. plic is peripherals::Plic, which derefs to pac::Plic.
-        enable_irq(&plic, ExternalInterrupt::GPIO1);
-    }
 
     Timer::after_secs(1).await;
 
@@ -101,15 +79,7 @@ async fn main(spawner: Spawner) -> ! {
                 writeln!(uart1p, "RX [{}->{}]: {} bytes binary", src, dst, data.len());
             }
         });
-        while let Some(msg) = logger::pop_log() {
-            // Note: send() might fail if the ring is full, but for logs we
-            // might just have to drop them or retry briefly.
-            if rpmsg.send(src_addr, src_addr, msg.as_bytes()).is_err() {
-                // If we can't send via RPMsg, maybe fallback to UART or drop
-                // We shouldn't log::error! here as it would loop recursively.
-                break;
-            }
-        }
+        logger::drain_to_rpmsg(&mut rpmsg, src_addr, src_addr);
         Timer::after_millis(2).await;
     }
 }
@@ -121,18 +91,5 @@ async fn print_hellos() {
             info!("Hello {i}!");
             Timer::after_secs(1).await;
         }
-    }
-}
-
-fn gpio1_handler() {
-    // Also update interrupt handler to use HAL peripherals steal
-    let peripherals = unsafe { peripherals::Peripherals::steal() };
-    let gpio0 = peripherals.gpio0;
-
-    unsafe { gpio0.dr().modify(|r, w| w.bits(r.bits() ^ LED_MASK)) };
-
-    for _ in 0..10000000 {
-        nop();
-        nop();
     }
 }

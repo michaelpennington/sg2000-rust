@@ -33,24 +33,28 @@ async fn main(_spawner: Spawner) -> ! {
     let mut logger = RpmsgLogger::init();
     info!("Logger initialized!");
 
-    let mut uart = Uart::new(peripherals.uart1, uart::Config::default())
-        .unwrap()
-        .into_async();
+    logger.flush_log();
+    let mut uart = Uart::new(
+        peripherals.uart1,
+        uart::Config::default().with_baud_rate(31250),
+    )
+    .unwrap()
+    .into_async();
     let mut buf = [0u8; 128];
 
     // spawner.spawn(print_hellos()).unwrap();
     loop {
         logger.flush_log();
         if let Ok(num_bytes) = uart.read(&mut buf).await {
-            if let Ok(s) = core::str::from_utf8(&buf[..num_bytes]) {
-                info!("{s}");
-            } else {
-                for byte in &buf[..num_bytes] {
-                    info!("{:#040X} ", byte);
+            for byte in &buf[..num_bytes] {
+                if *byte >= 0x80 {
+                    info!("\nMIDI Status: {byte:#04X}");
+                } else {
+                    info!(" Data: {byte:#04X}");
                 }
             }
         }
-        Timer::after_millis(2).await;
+        Timer::after_millis(1).await;
     }
 }
 

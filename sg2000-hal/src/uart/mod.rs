@@ -453,7 +453,7 @@ impl<'a> AsyncRead for Uart<'a, Async> {
                     }
                     *byte = uart_rx_data.buffer[idx % BUFFER_SIZE];
                 }
-                Poll::Ready(Ok(count))
+                Poll::Ready(Ok(count + 1))
             })
         })
         .await

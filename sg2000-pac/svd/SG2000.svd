@@ -84,6 +84,38 @@
           </fields>
         </register>
         <register>
+          <dim>32</dim>
+          <dimIncrement>0x4</dimIncrement>
+          <name>PLIC_H1_MIE[%s]</name>
+          <description>Hart 1 M-mode Interrupt Enable Register</description>
+          <addressOffset>0x2100</addressOffset>
+          <size>32</size>
+          <access>read-write</access>
+          <fields>
+            <field>
+              <name>IE</name>
+              <description>Interrupt Enable Bits</description>
+              <bitRange>[31:0]</bitRange>
+            </field>
+          </fields>
+        </register>
+        <register>
+          <dim>32</dim>
+          <dimIncrement>0x4</dimIncrement>
+          <name>PLIC_H1_SIE[%s]</name>
+          <description>Hart 1 S-mode Interrupt Enable Register</description>
+          <addressOffset>0x2180</addressOffset>
+          <size>32</size>
+          <access>read-write</access>
+          <fields>
+            <field>
+              <name>IE</name>
+              <description>Interrupt Enable Bits</description>
+              <bitRange>[31:0]</bitRange>
+            </field>
+          </fields>
+        </register>
+        <register>
           <name>PLIC_PER</name>
           <description>PLIC Permission Control Register</description>
           <addressOffset>0x1FFFFC</addressOffset>
@@ -142,6 +174,61 @@
           <name>PLIC_H0_SCLAIM</name>
           <description>S-mode Interrupt Claim/Complete Register</description>
           <addressOffset>0x201004</addressOffset>
+          <size>32</size>
+          <access>read-write</access>
+          <resetValue>0x00</resetValue>
+          <fields>
+            <field>
+              <name>CLAIM_ID</name>
+              <bitRange>[31:0]</bitRange>
+            </field>
+          </fields>
+        </register>
+        <register>
+          <name>PLIC_H1_MTH</name>
+          <description>Hart 1 M-mode Interrupt Threshold Register</description>
+          <addressOffset>0x202000</addressOffset>
+          <size>32</size>
+          <access>read-write</access>
+          <fields>
+            <field>
+              <name>THRESHOLD</name>
+              <bitRange>[31:0]</bitRange>
+            </field>
+          </fields>
+        </register>
+        <register>
+          <name>PLIC_H1_MCLAIM</name>
+          <description>Hart 1 M-mode Interrupt Claim/Complete Register</description>
+          <addressOffset>0x202004</addressOffset>
+          <size>32</size>
+          <access>read-write</access>
+          <resetValue>0x00</resetValue>
+          <fields>
+            <field>
+              <name>CLAIM_ID</name>
+              <bitRange>[31:0]</bitRange>
+            </field>
+          </fields>
+        </register>
+        <register>
+          <name>PLIC_H1_STH</name>
+          <description>Hart 1 S-mode Interrupt Threshold Register</description>
+          <addressOffset>0x203000</addressOffset>
+          <size>32</size>
+          <resetValue>0x00</resetValue>
+          <access>read-write</access>
+          <fields>
+            <field>
+              <name>THRESHOLD</name>
+              <bitRange>[31:0]</bitRange>
+            </field>
+          </fields>
+        </register>
+        <register>
+          <name>PLIC_H1_SCLAIM</name>
+          <description>Hart 1 S-mode Interrupt Claim/Complete Register</description>
+          <addressOffset>0x203004</addressOffset>
           <size>32</size>
           <access>read-write</access>
           <resetValue>0x00</resetValue>

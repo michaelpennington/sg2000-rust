@@ -285,6 +285,9 @@ impl<'a> Uart<'a, Blocking> {
                 .char1()
         });
 
+        let _ = uart.lsr().read();
+        let _ = uart.rbr_thr().read();
+
         Ok(Self {
             uart,
             phantom: PhantomData,
@@ -566,6 +569,9 @@ fn uart1_handler() {
                 waker.wake();
             }
         }),
-        _ => {}
+        _ => {
+            let _ = uart.lsr().read();
+            let _ = uart.rbr_thr().read();
+        }
     }
 }

@@ -524,7 +524,8 @@ impl<'a> AsyncWrite for Uart<'a, Async> {
 fn uart1_handler() {
     let uart = unsafe { sg2000_pac::Uart1::steal() };
     let iir = uart.iir().read();
-
+    // let raw_id = iir.bits() & 0x0F;
+    // panic!("ISR STORM! IIR ID: {:#X}", raw_id);
     match iir.int_id().variant() {
         Some(IntStatus::Thrempty) => {
             critical_section::with(|cs| {
@@ -561,9 +562,7 @@ fn uart1_handler() {
             }
             uart_rx_data.wt_ptr = wt_ptr;
 
-            if uart.usr().read().rx_fifo_not_empty().bit_is_clear() {
-                uart.ier().modify(|_, w| w.rx_data().clear_bit());
-            }
+            uart.ier().modify(|_, w| w.rx_data().clear_bit());
 
             if let Some(waker) = uart_rx_data.waker.take() {
                 waker.wake();
@@ -571,7 +570,9 @@ fn uart1_handler() {
         }),
         _ => {
             let _ = uart.lsr().read();
-            let _ = uart.rbr_thr().read();
+            let _ = uart.rbr_thr().read(); // Clears RX Timeout (0x0C)
+            let _ = uart.usr().read(); // Clears Busy Detect (0x07) - MISSING IN YOUR CODE
+            let _ = uart.msr().read();
         }
     }
 }
